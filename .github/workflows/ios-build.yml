@@ -23,10 +23,11 @@ jobs:
     name: 构建 SFI iOS 未签名 IPA（真机仅 arm64）
     runs-on: macos-15
     steps:
-      - name: 检出 SFI 代码
+      - name: 检出 SFI 代码（含子模块）
         uses: actions/checkout@v4
         with:
           path: sfi
+          submodules: recursive
 
       - name: 检出 sing-box 核心代码（用于构建 Libbox）
         uses: actions/checkout@v4
