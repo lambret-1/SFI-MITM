@@ -23,6 +23,7 @@ jobs:
     name: 构建 SFI iOS 未签名 IPA（真机仅 arm64）
     runs-on: macos-15
     steps:
+      # ========== 第一阶段：检出代码 ==========
       - name: 检出 SFI 代码
         uses: actions/checkout@v4
         with:
@@ -45,6 +46,16 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           path: sing-box-core
 
+      # ========== 第二阶段：计算缓存 key ==========
+      - name: 计算 sing-box 核心 commit hash（Libbox 缓存 key）
+        id: core-sha
+        run: |
+          CORE_SHA=$(cd sing-box-core && git rev-parse HEAD)
+          echo "core_sha=$CORE_SHA" >> $GITHUB_OUTPUT
+          echo "sing-box 核心 commit: $CORE_SHA"
+          echo "core_sha_short=${CORE_SHA:0:8}" >> $GITHUB_OUTPUT
+
+      # ========== 第三阶段：Go 环境与 gomobile ==========
       - name: 设置 Go 环境
         uses: actions/setup-go@v5
         with:
@@ -66,10 +77,27 @@ jobs:
           fi
           echo "gomobile 就绪: $(gomobile version 2>/dev/null || echo 'installed')"
 
-      - name: 构建 Libbox.framework（仅 iOS 真机 arm64，不构建模拟器）
+      # ========== 第四阶段：Libbox 三级缓存 ==========
+      # 缓存策略：
+      #   key = libbox-ios-arm64-{sing-box核心commit hash}
+      #   - 只改 SFI 壳：核心 commit 不变 → 缓存命中 → 跳过 Libbox 构建（省约10分钟）
+      #   - 改了 sing-box 核心：核心 commit 变化 → 缓存未命中 → 重建 Libbox
+      #   - 完全没变：全缓存命中（gomobile + Go模块 + Libbox）
+      - name: 缓存 Libbox.xcframework（基于 sing-box 核心 commit）
+        id: cache-libbox
+        uses: actions/cache@v4
+        with:
+          path: sing-box-core/Libbox.xcframework
+          key: libbox-ios-arm64-${{ steps.core-sha.outputs.core_sha }}
+          restore-keys: |
+            libbox-ios-arm64-
+
+      - name: 构建 Libbox.framework（仅 iOS 真机 arm64，缓存未命中时执行）
+        if: steps.cache-libbox.outputs.cache-hit != 'true'
         working-directory: sing-box-core
         run: |
-          echo "=== 构建 Libbox（iOS 真机切片）==="
+          echo "=== 缓存未命中，构建 Libbox（iOS 真机切片）==="
+          echo "sing-box 核心 commit: ${{ steps.core-sha.outputs.core_sha_short }}"
           # gomobile 的 ios target 包含设备+模拟器，构建后删除模拟器切片
           go run ./cmd/internal/build_libbox -target apple -platform ios
           echo "=== 原始 xcframework 切片 ==="
@@ -80,7 +108,17 @@ jobs:
           echo "=== 最终 xcframework 切片 ==="
           ls -1 Libbox.xcframework/
           du -sh Libbox.xcframework
+          echo "✅ Libbox 构建完成，将自动保存到缓存"
 
+      - name: Libbox 缓存命中提示
+        if: steps.cache-libbox.outputs.cache-hit == 'true'
+        run: |
+          echo "✅ Libbox 缓存命中（sing-box 核心未变更），跳过构建"
+          echo "   核心 commit: ${{ steps.core-sha.outputs.core_sha_short }}"
+          ls -1 sing-box-core/Libbox.xcframework/
+          du -sh sing-box-core/Libbox.xcframework
+
+      # ========== 第五阶段：复制 Libbox 到项目 ==========
       - name: 复制 Libbox.xcframework 到项目根目录
         run: |
           rm -rf sfi/Libbox.xcframework
@@ -88,6 +126,7 @@ jobs:
           echo "✅ Libbox 复制完成（项目根目录）"
           ls -1 sfi/Libbox.xcframework/
 
+      # ========== 第六阶段：构建 SFI iOS App ==========
       - name: 构建 SFI iOS App（Release，arm64 真机，未签名）
         working-directory: sfi
         run: |
@@ -131,6 +170,7 @@ jobs:
           echo "✅ xcodebuild 构建成功"
           tail -5 build.log
 
+      # ========== 第七阶段：验证与打包 ==========
       - name: 验证构建产物
         working-directory: sfi
         run: |
