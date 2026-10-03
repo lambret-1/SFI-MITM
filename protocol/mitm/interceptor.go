@@ -90,6 +90,10 @@ func (s *Service) Intercept(ctx context.Context, 连接 net.Conn, 元数据 adap
 
 	s.logger.InfoContext(ctx, "mitm: 域名命中，开始 TLS 终止: ", 客户端问候.SNI)
 
+	// 活跃连接计数 +1，拦截结束时 -1
+	s.增加连接()
+	defer s.减少连接()
+
 	// 步骤 4-5：签发叶子证书并与客户端建立 TLS
 	客户端回退连接 := 新建回退读取器(连接, 客户端问候.原始数据)
 	tls连接, err := s.终止TLS(客户端回退连接, 客户端问候.SNI, 客户端问候.ALPN)

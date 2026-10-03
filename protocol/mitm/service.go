@@ -3,6 +3,7 @@ package mitm
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	"github.com/sagernet/sing-box/adapter"
 	boxService "github.com/sagernet/sing-box/adapter/service"
@@ -49,6 +50,9 @@ type Service struct {
 
 	// 重写引擎（rewrite/）
 	重写引擎 *rewrite.Engine
+
+	// 活跃连接数 当前正在进行 MITM 解密的连接数（原子操作）
+	活跃连接数 atomic.Int32
 }
 
 // NewService 构造 MITM 服务
@@ -143,4 +147,42 @@ func (s *Service) 获取上游超时() int {
 		return 30
 	}
 	return s.options.UpstreamTimeout
+}
+
+// CA已安装 返回根证书是否已成功加载
+func (s *Service) CA已安装() bool {
+	s.证书锁.RLock()
+	defer s.证书锁.RUnlock()
+	return s.根证书 != nil
+}
+
+// 获取活跃连接数 返回当前正在进行 MITM 解密的连接数
+func (s *Service) 获取活跃连接数() int32 {
+	return s.活跃连接数.Load()
+}
+
+// IsEnabled 导出方法：返回 MITM 服务是否已启用
+// 供 daemon/libbox 等外部包调用（中文方法名首字符非 Unicode 大写字母，Go 视为未导出）
+func (s *Service) IsEnabled() bool {
+	return s.是否启用()
+}
+
+// IsCAInstalled 导出方法：返回根证书是否已成功加载
+func (s *Service) IsCAInstalled() bool {
+	return s.CA已安装()
+}
+
+// GetActiveConnections 导出方法：返回当前活跃 MITM 连接数
+func (s *Service) GetActiveConnections() int32 {
+	return s.获取活跃连接数()
+}
+
+// 增加连接 原子增加活跃连接计数，在拦截开始时调用
+func (s *Service) 增加连接() {
+	s.活跃连接数.Add(1)
+}
+
+// 减少连接 原子减少活跃连接计数，在拦截结束时调用
+func (s *Service) 减少连接() {
+	s.活跃连接数.Add(-1)
 }

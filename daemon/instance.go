@@ -14,6 +14,7 @@ import (
 	"github.com/sagernet/sing-box/experimental/locale"
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/option"
+	"github.com/sagernet/sing-box/protocol/mitm"
 	"github.com/sagernet/sing-box/service/powerreport"
 	"github.com/sagernet/sing/common"
 	E "github.com/sagernet/sing/common/exceptions"
@@ -206,6 +207,31 @@ func (i *Instance) PauseManager() pause.Manager {
 
 func (i *Instance) TrafficManager() *trafficcontrol.Manager {
 	return i.trafficManager
+}
+
+// MITMStatus MITM 服务运行状态
+type MITMStatus struct {
+	// Enabled MITM 服务是否已启用
+	Enabled bool
+	// CAInstalled 根证书是否已成功加载
+	CAInstalled bool
+	// ActiveConnections 当前正在进行 MITM 解密的活跃连接数
+	ActiveConnections int32
+}
+
+// GetMITMStatus 获取 MITM 服务运行状态
+// 从 sing-box 服务上下文中获取 MITM Service 实例并查询状态。
+// 未配置 MITM 服务时返回零值（Enabled=false）。
+func (i *Instance) GetMITMStatus() MITMStatus {
+	mitm服务 := mitm.FromContext(i.ctx)
+	if mitm服务 == nil {
+		return MITMStatus{}
+	}
+	return MITMStatus{
+		Enabled:           mitm服务.IsEnabled(),
+		CAInstalled:       mitm服务.IsCAInstalled(),
+		ActiveConnections: mitm服务.GetActiveConnections(),
+	}
 }
 
 func parseConfig(ctx context.Context, configContent string) (option.Options, error) {

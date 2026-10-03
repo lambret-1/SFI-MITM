@@ -2118,3 +2118,14 @@ func (s *StartedService) Instance() *Instance {
 	defer s.serviceAccess.RUnlock()
 	return s.instance
 }
+
+// GetMITMStatus 获取 MITM 服务运行状态
+// 委托给当前运行的 sing-box 实例查询。
+// 服务未启动时返回零值（Enabled=false）。
+func (s *StartedService) GetMITMStatus() MITMStatus {
+	instance := s.Instance()
+	if instance == nil {
+		return MITMStatus{}
+	}
+	return instance.GetMITMStatus()
+}
