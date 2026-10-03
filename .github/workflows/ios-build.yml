@@ -78,17 +78,16 @@ jobs:
       - name: 构建 SFI iOS App（未签名，TrollStore 兼容）
         working-directory: sfi
         run: |
-          set -o pipefail
-          echo "=== 当前目录 ==="
-          pwd
-          ls -la
+          echo "=== Xcode 版本 ==="
+          xcodebuild -version
           echo ""
-          echo "=== 项目文件 ==="
-          ls -la sing-box.xcodeproj/
+          echo "=== 诊断：xcodebuild -list（验证项目可读取）==="
+          xcodebuild -project sing-box.xcodeproj -list 2>&1 | head -30 || echo "⚠️ xcodebuild -list 返回非零"
           echo ""
           echo "=== xcodebuild 构建（Release，未签名）==="
+          # 注意：shell 有 -e，用 || true 防止 xcodebuild 失败时提前终止
           xcodebuild \
-            -project "$GITHUB_WORKSPACE/sfi/sing-box.xcodeproj" \
+            -project sing-box.xcodeproj \
             -scheme "${{ env.XCODE_SCHEME }}" \
             -configuration "${{ env.BUILD_CONFIGURATION }}" \
             -destination 'generic/platform=iOS' \
@@ -98,14 +97,14 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
             ONLY_ACTIVE_ARCH=NO \
-            build > build.log 2>&1
-          BUILD_EXIT=$?
+            build > build.log 2>&1 || true
+          BUILD_EXIT=${PIPESTATUS[0]}
           echo "=== 构建退出码: $BUILD_EXIT ==="
-          echo "=== 构建日志（最后80行）==="
-          tail -80 build.log
-          if [ $BUILD_EXIT -ne 0 ]; then
-            echo "❌ xcodebuild 构建失败"
-            exit $BUILD_EXIT
+          echo "=== 构建日志（最后100行）==="
+          tail -100 build.log
+          if [ "$BUILD_EXIT" -ne 0 ]; then
+            echo "❌ xcodebuild 构建失败 (exit=$BUILD_EXIT)"
+            exit 1
           fi
           echo "✅ xcodebuild 构建成功"
 
