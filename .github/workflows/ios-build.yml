@@ -50,15 +50,15 @@ jobs:
         run: |
           cd ${{ env.SINGBOX_DIR }}
           go run ./cmd/internal/build_libbox -target apple
-          # build_libbox 会自动将产物移动到 ../sing-box-for-apple/Libbox.xcframework
-          ls -lh "../${{ env.APPLE_DIR }}/Libbox.xcframework/"
+          ls -lh Libbox.xcframework/ || ls -lh *.xcframework/
 
-      - name: 复制 Libbox.xcframework 到 SFI Frameworks
+      - name: 复制 Libbox.xcframework 到 SFI
         run: |
-          cd ${{ env.APPLE_DIR }}
-          rm -rf Frameworks/Libbox.xcframework
-          mv Libbox.xcframework Frameworks/
-          ls -lh Frameworks/Libbox.xcframework/
+          cd ${{ env.SINGBOX_DIR }}
+          LIBBOX_FRAMEWORK=$(find . -name "Libbox.xcframework" -type d | head -1)
+          echo "找到 Libbox.xcframework: $LIBBOX_FRAMEWORK"
+          cp -R "$LIBBOX_FRAMEWORK" "../${{ env.APPLE_DIR }}/Frameworks/"
+          ls -lh "../${{ env.APPLE_DIR }}/Frameworks/Libbox.xcframework/"
 
       - name: 构建 SFI iOS App
         run: |
