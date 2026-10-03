@@ -68,6 +68,230 @@ jobs:
             echo "$FOUND"
             exit 1
           fi
+          echo "✅ 无意外文件"
+
+      - name: 检查 pbxproj 有效性
+        run: |
+          FOUND=0
+          while IFS= read -r -d '' f; do
+            FOUND=1
+            open_count=$(tr -cd '{' < "$f" | wc -c)
+            close_count=$(tr -cd '}' < "$f" | wc -c)
+            if [ "$open_count" -ne "$close_count" ]; then
+              echo "❌ pbxproj 大括号不匹配: $f ($open_count vs $close_count)"
+              exit 1
+            fi
+            if ! grep -q 'rootObject' "$f"; then
+              echo "❌ pbxproj 缺少 rootObject: $f"
+              exit 1
+            fi
+          done < <(find . -name 'project.pbxproj' -not -path './.git/*' -print0)
+          if [ "$FOUND" -eq 0 ]; then
+            echo "⚠️ 未找到 project.pbxproj"
+          else
+            echo "✅ pbxproj 有效"
+          fi
+
+      - name: 检查 entitlements
+        run: |
+          ENT=$(find . -name '*.entitlements' -not -path './.git/*' | head -1)
+          if [ -z "$ENT" ]; then
+            echo "⚠️ 未找到 entitlements 文件"
+            exit 0
+          fi
+          echo "检查: $ENT"
+          if ! grep -q 'com.apple.developer.networking.networkextension' "$ENT"; then
+            echo "❌ 缺少关键权限: com.apple.developer.networking.networkextension"
+            exit 1
+          fi
+          if grep -qE 'get-task-allow.*true' "$ENT"; then
+            echo "❌ entitlements 包含 get-task-allow=true（调试用，不应提交）"
+            exit 1
+          fi
+          echo "✅ entitlements 检查通过"
+
+      - name: 检查大文件
+        run: |
+          BIG=$(find . -type f -size +5M -not -path './.git/*' -not -path './build/*' | head -20)
+          if [ -n "$BIG" ]; then
+            echo "❌ 发现大文件（>5MB），不应提交："
+            echo "$BIG"
+            exit 1
+          fi
+          echo "✅ 无异常大文件"
+
+      - name: 检查硬编码密钥
+        run: |
+          if grep -rniE \
+            'BEGIN (RSA|EC|OPENSSH|DSA) PRIVATE KEY|api[_-]?key\s*[:=]\s*["'"'"'][A-Za-z0-9_\-]{16,}|secret\s*[:=]\s*["'"'"'][A-Za-z0-9_\-]{16,}' \
+            --include='*.swift' --include='*.plist' --include='*.json' \
+            --include='*.yml' --include='*.yaml' --include='*.sh' . 2>/dev/null; then
+            echo "❌ 疑似硬编码密钥"
+            exit 1
+          fi
+          echo "✅ 无硬编码密钥"
+
+      - name: 检查空白错误
+        env:
+          BASE_REF: ${{ github.base_ref || 'sing-box-for-apple' }}
+        run: |
+          if ! git rev-parse --verify "origin/${BASE_REF}" >/dev/null 2>&1; then
+            echo "⚠️ 找不到 origin/${BASE_REF}，跳过空白检查"
+            exit 0
+          fi
+          if ! git diff --check "origin/${BASE_REF}...HEAD"; then
+            echo "❌ 存在空白错误（行尾空格、tab 混用等）"
+            exit 1
+          fi
+          echo "✅ 无空白错误"
+
+      - name: 检查文件末尾换行（警告）
+        run: |
+          FOUND=$(git ls-files '*.swift' '*.plist' '*.yml' '*.md' | while read -r f; do
+            [ -s "$f" ] && [ "$(tail -c1 "$f" | wc -l)" -eq 0 ] && echo "$f"
+          done)
+          if [ -n "$FOUND" ]; then
+            echo "⚠️ 以下文件末尾缺少换行（不阻塞）："
+            echo "$FOUND"
+          else
+            echo "✅ 所有文件末尾有换行"
+          fi
+
+      - name: 检查重复文件名（警告）
+        run: |
+          DUP=$(git ls-files '*.swift' | xargs -n1 basename 2>/dev/null | sort | uniq -d || true)
+          if [ -n "$DUP" ]; then
+            echo "⚠️ 存在重复文件名（Xcode 可能行为异常，不阻塞）："
+            echo "$DUP"
+          else
+            echo "✅ 无重复文件名"
+          fi
+
+      - name: 显示变更文件
+        env:
+          BASE_REF: ${{ github.base_ref || 'sing-box-for-apple' }}
+        run: |
+          if git rev-parse --verify "origin/${BASE_REF}" >/dev/null 2>&1; then
+            echo "=== 变更文件 ==="
+            git diff --name-only "origin/${BASE_REF}...HEAD" || true
+          else
+            echo "⚠️ 找不到对比分支，跳过显示变更文件"
+          fi
+
+  # ============================================================
+  # Job 2：SwiftLint（约 40s，与 Job 1 并行）
+  # ============================================================
+  swiftlint:
+    name: SwiftLint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: 准备 SwiftLint 配置
+        run: |
+          if [ ! -f .swiftlint.yml ]; then
+            echo "⚠️ 未找到 .swiftlint.yml，使用默认配置"
+            printf 'disabled_rules:\n  - trailing_whitespace\n  - line_length\nopt_in_rules:\n  - force_unwrapping\n  - empty_count\n  - closure_spacing\n' > .swiftlint.yml
+          fi
+
+      - name: 运行 SwiftLint
+        run: |
+          # 增加拉取重试，避免网络波动导致失败
+          for i in 1 2 3; do
+            if docker pull ghcr.io/realm/swiftlint:0.57.1; then
+              break
+            fi
+            echo "Docker 镜像拉取失败，5 秒后重试 ($i/3)..."
+            sleep 5
+          done
+
+          docker run --rm \
+            -v "$PWD:/work" -w /work \
+            ghcr.io/realm/swiftlint:0.57.1 \
+            swiftlint lint --strict --quiet \
+            --reporter github-actions-logging 2>&1 | tee swiftlint.log
+          
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ]; then
+            echo "❌ SwiftLint 发现问题（退出码 $STATUS）"
+            echo "=== 摘要 ==="
+            grep -cE '^::(error|warning)' swiftlint.log || echo "0"
+            exit 1
+          fi
+          echo "✅ SwiftLint 通过"name: SFI PR 快速检查
+
+on:
+  push:
+    branches:
+      - sing-box-for-apple
+  pull_request:
+    branches:
+      - sing-box-for-apple
+  workflow_dispatch:
+
+concurrency:
+  group: sfi-pr-quick-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # ============================================================
+  # Job 1：静态检查（约 30s）
+  # ============================================================
+  quick-check:
+    name: 静态检查
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 检查冲突标记
+        run: |
+          if grep -rnE '^(<<<<<<<|=======|>>>>>>>)' \
+            --include='*.swift' --include='*.plist' \
+            --include='*.pbxproj' --include='*.yml' \
+            --include='*.yaml' --include='*.json' \
+            --include='*.md' . 2>/dev/null; then
+            echo "❌ 发现未解决的冲突标记"
+            exit 1
+          fi
+          echo "✅ 无冲突标记"
+
+      - name: 检查 Info.plist 语法
+        run: |
+          FOUND=0
+          while IFS= read -r -d '' f; do
+            FOUND=1
+            if ! python3 -c "import plistlib,sys; plistlib.load(open(sys.argv[1],'rb'))" "$f" 2>/dev/null; then
+              echo "❌ plist 语法错误: $f"
+              exit 1
+            fi
+          done < <(find . -name 'Info.plist' -not -path './.git/*' -print0)
+          if [ "$FOUND" -eq 0 ]; then
+            echo "⚠️ 未找到 Info.plist"
+          else
+            echo "✅ 所有 Info.plist 合法"
+          fi
+
+      - name: 检查意外提交的文件
+        run: |
+          PATTERNS='\.DS_Store$|xcuserdata/|\.xcworkspace/xcshareddata/|DerivedData/|\.swiftpm/|__pycache__/|\.pyc$'
+          FOUND=$(git ls-files | grep -E "$PATTERNS" || true)
+          if [ -n "$FOUND" ]; then
+            echo "❌ 发现不应提交的文件："
+            echo "$FOUND"
+            exit 1
+          fi
           echo "✅ 无意外文件" 
 
       - name: 检查 pbxproj 有效性
