@@ -81,12 +81,12 @@ jobs:
           ls -1 Libbox.xcframework/
           du -sh Libbox.xcframework
 
-      - name: 复制 Libbox.xcframework 到 SFI Frameworks
+      - name: 复制 Libbox.xcframework 到项目根目录
         run: |
-          rm -rf sfi/Frameworks/Libbox.xcframework
-          cp -R sing-box-core/Libbox.xcframework sfi/Frameworks/
-          echo "✅ Libbox 复制完成"
-          ls -1 sfi/Frameworks/Libbox.xcframework/
+          rm -rf sfi/Libbox.xcframework
+          cp -R sing-box-core/Libbox.xcframework sfi/Libbox.xcframework
+          echo "✅ Libbox 复制完成（项目根目录）"
+          ls -1 sfi/Libbox.xcframework/
 
       - name: 构建 SFI iOS App（Release，arm64 真机，未签名）
         working-directory: sfi
