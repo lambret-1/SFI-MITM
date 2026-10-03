@@ -408,7 +408,7 @@ public class CommandClient: ObservableObject {
             }
         }
 
-        func writeConnectionEvents(_ events: LibboxConnectionEvents?) {
+        func write(_ events: LibboxConnectionEvents?) {
             guard let events else {
                 return
             }
