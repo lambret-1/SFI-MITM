@@ -52,8 +52,8 @@ jobs:
 
       - name: 构建 Libbox.xcframework
         run: |
-          echo "=== 开始构建 Libbox.xcframework（iOS/iOS Simulator/tvOS/tvOS Simulator/macOS）==="
-          go run ./cmd/internal/build_libbox -target apple
+          echo "=== 开始构建 Libbox.xcframework（仅 iOS 设备 + iOS 模拟器，SFI 项目所需）==="
+          go run ./cmd/internal/build_libbox -target apple -platform ios,iossimulator
           echo "=== 构建完成 ==="
 
       - name: 验证产物
