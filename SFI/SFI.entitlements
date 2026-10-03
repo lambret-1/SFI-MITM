@@ -2,25 +2,84 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- TrollStore 全权限核心：以平台应用身份运行，获得根权限 -->
+	<key>platform-application</key>
+	<true/>
+	<!-- 不使用沙盒容器 -->
+	<key>com.apple.private.security.no-container</key>
+	<true/>
+	<key>com.apple.private.security.container-required</key>
+	<false/>
+	<!-- 允许调试 -->
+	<key>get-task-allow</key>
+	<true/>
+	<!-- iCloud 文档 -->
 	<key>com.apple.developer.icloud-container-identifiers</key>
 	<array>
-		<string>iCloud.io.nekohasekai.sfavt</string>
+		<string>iCloud.com.mitm.box</string>
 	</array>
 	<key>com.apple.developer.icloud-services</key>
 	<array>
 		<string>CloudDocuments</string>
 	</array>
+	<key>com.apple.developer.ubiquity-container-identifiers</key>
+	<array>
+		<string>iCloud.com.mitm.box</string>
+	</array>
+	<!-- Network Extension VPN 权限 -->
 	<key>com.apple.developer.networking.networkextension</key>
 	<array>
 		<string>packet-tunnel-provider</string>
 	</array>
-	<key>com.apple.developer.ubiquity-container-identifiers</key>
-	<array>
-		<string>iCloud.io.nekohasekai.sfavt</string>
-	</array>
+	<!-- 多播网络权限 -->
+	<key>com.apple.developer.networking.multicast</key>
+	<true/>
+	<!-- WiFi 信息权限 -->
+	<key>com.apple.developer.networking.wifi-info</key>
+	<true/>
+	<!-- 应用组（与 Network Extension 共享数据） -->
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.io.nekohasekai.sfavt</string>
+		<string>group.com.mitm.box</string>
 	</array>
+	<!-- TCC 全权限 -->
+	<key>com.apple.private.tcc.allow</key>
+	<array>
+		<string>kTCCServiceAddressBook</string>
+		<string>kTCCServicePhotos</string>
+		<string>kTCCServicePhotosAdd</string>
+		<string>kTCCServiceLocation</string>
+		<string>kTCCServiceReminders</string>
+		<string>kTCCServiceCalendar</string>
+		<string>kTCCServiceBluetoothAlways</string>
+		<string>kTCCServiceMicrophone</string>
+		<string>kTCCServiceCamera</string>
+		<string>kTCCServiceMotion</string>
+		<string>kTCCServiceFaceID</string>
+		<string>kTCCServiceMediaLibrary</string>
+		<string>kTCCServiceMusic</string>
+		<string>kTCCServiceSiri</string>
+		<string>kTCCServiceSpeechRecognition</string>
+		<string>kTCCServiceUserTracking</string>
+		<string>kTCCServiceAccessibility</string>
+		<string>kTCCServiceSystemPolicyAllFiles</string>
+		<string>kTCCServiceSystemPolicyDesktopFolder</string>
+		<string>kTCCServiceSystemPolicyDocumentsFolder</string>
+		<string>kTCCServiceSystemPolicyDownloadsFolder</string>
+		<string>kTCCServiceSystemPolicyNetworkVolumes</string>
+		<string>kTCCServiceSystemPolicyRemovableVolumes</string>
+		<string>kTCCServiceSystemPolicySysAdminFiles</string>
+	</array>
+	<!-- 运营商信息 -->
+	<key>com.apple.coretelephony.Identity.get</key>
+	<true/>
+	<key>com.apple.coretelephony.SubscriptionInfo.get</key>
+	<true/>
+	<!-- 打开敏感 URL -->
+	<key>com.apple.springboard.opensensitiveurl</key>
+	<true/>
+	<!-- 后台任务 -->
+	<key>com.apple.developer.background-tasks</key>
+	<true/>
 </dict>
 </plist>

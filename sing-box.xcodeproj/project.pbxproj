@@ -44,10 +44,10 @@
 		3AE4D0BE2A6E2DDC009FEA9E /* Library.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 3AEC211D2A459B4700A63465 /* Library.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		3AE595822F08C3D400C13426 /* Library.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3AEC211D2A459B4700A63465 /* Library.framework */; };
 		3AE595AA2F08C61600C13426 /* RootHelper in Copy Helpers */ = {isa = PBXBuildFile; fileRef = 3AE595712F08C34000C13426 /* RootHelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		3AE595B02F08D00000C13426 /* HelperService/LaunchDaemons/io.nekohasekai.sfavt.helper.plist in Copy LaunchDaemon */ = {isa = PBXBuildFile; fileRef = 3AE595AE2F08D00000C13426 /* HelperService/LaunchDaemons/io.nekohasekai.sfavt.helper.plist */; };
+		3AE595B02F08D00000C13426 /* HelperService/LaunchDaemons/com.mitm.box.helper.plist in Copy LaunchDaemon */ = {isa = PBXBuildFile; fileRef = 3AE595AE2F08D00000C13426 /* HelperService/LaunchDaemons/com.mitm.box.helper.plist */; };
 		3AEAEE992A4F16430059612D /* Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3A096F862A4ED3DE00D4A2ED /* Extension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3AEECBF22A6DF40A006A0E0C /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3AF342B12A4AA520002B34AC /* NetworkExtension.framework */; };
-		3AEECC1A2A6DFA79006A0E0C /* io.nekohasekai.sfavt.system.systemextension in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = 3AEECBF12A6DF40A006A0E0C /* io.nekohasekai.sfavt.system.systemextension */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		3AEECC1A2A6DFA79006A0E0C /* com.mitm.box.system.systemextension in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = 3AEECBF12A6DF40A006A0E0C /* com.mitm.box.system.systemextension */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3AEECC1D2A6DFA79006A0E0C /* Library.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3AEC211D2A459B4700A63465 /* Library.framework */; };
 		3AEECC1E2A6DFA79006A0E0C /* Library.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 3AEC211D2A459B4700A63465 /* Library.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		3AEECC352A6DFDAD006A0E0C /* MacLibrary.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3AEECC2F2A6DFDAD006A0E0C /* MacLibrary.framework */; };
@@ -399,7 +399,7 @@
 			dstPath = ../Library/LaunchDaemons;
 			dstSubfolderSpec = 7;
 			files = (
-				3AE595B02F08D00000C13426 /* HelperService/LaunchDaemons/io.nekohasekai.sfavt.helper.plist in Copy LaunchDaemon */,
+				3AE595B02F08D00000C13426 /* HelperService/LaunchDaemons/com.mitm.box.helper.plist in Copy LaunchDaemon */,
 			);
 			name = "Copy LaunchDaemon";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -421,7 +421,7 @@
 			dstPath = "$(SYSTEM_EXTENSIONS_FOLDER_PATH)";
 			dstSubfolderSpec = 16;
 			files = (
-				3AEECC1A2A6DFA79006A0E0C /* io.nekohasekai.sfavt.system.systemextension in Embed System Extensions */,
+				3AEECC1A2A6DFA79006A0E0C /* com.mitm.box.system.systemextension in Embed System Extensions */,
 			);
 			name = "Embed System Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -451,13 +451,13 @@
 		3AE595712F08C34000C13426 /* RootHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = RootHelper; sourceTree = BUILT_PRODUCTS_DIR; };
 		3AE595A12F08C4E900C13426 /* CoreWLAN.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreWLAN.framework; path = System/Library/Frameworks/CoreWLAN.framework; sourceTree = SDKROOT; };
 		3AE595A32F08C4ED00C13426 /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
-		3AE595AE2F08D00000C13426 /* HelperService/LaunchDaemons/io.nekohasekai.sfavt.helper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = HelperService/LaunchDaemons/io.nekohasekai.sfavt.helper.plist; sourceTree = "<group>"; };
-		3AE595AF2F08D00000C13426 /* UserHelper/LaunchAgents/io.nekohasekai.sfavt.userhelper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = UserHelper/LaunchAgents/io.nekohasekai.sfavt.userhelper.plist; sourceTree = "<group>"; };
+		3AE595AE2F08D00000C13426 /* HelperService/LaunchDaemons/com.mitm.box.helper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = HelperService/LaunchDaemons/com.mitm.box.helper.plist; sourceTree = "<group>"; };
+		3AE595AF2F08D00000C13426 /* UserHelper/LaunchAgents/com.mitm.box.userhelper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = UserHelper/LaunchAgents/com.mitm.box.userhelper.plist; sourceTree = "<group>"; };
 		3AEC20DB2A4599D000A63465 /* Libbox.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libbox.xcframework; sourceTree = "<group>"; };
 		3AEC20F32A459AB400A63465 /* sing-box.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "sing-box.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3AEC21092A459B1900A63465 /* sing-box.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "sing-box.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3AEC211D2A459B4700A63465 /* Library.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Library.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		3AEECBF12A6DF40A006A0E0C /* io.nekohasekai.sfavt.system.systemextension */ = {isa = PBXFileReference; explicitFileType = "wrapper.system-extension"; includeInIndex = 0; path = io.nekohasekai.sfavt.system.systemextension; sourceTree = BUILT_PRODUCTS_DIR; };
+		3AEECBF12A6DF40A006A0E0C /* com.mitm.box.system.systemextension */ = {isa = PBXFileReference; explicitFileType = "wrapper.system-extension"; includeInIndex = 0; path = com.mitm.box.system.systemextension; sourceTree = BUILT_PRODUCTS_DIR; };
 		3AEECC042A6DF9CA006A0E0C /* SFM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SFM.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3AEECC2F2A6DFDAD006A0E0C /* MacLibrary.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = MacLibrary.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		3AF342B12A4AA520002B34AC /* NetworkExtension.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NetworkExtension.framework; path = System/Library/Frameworks/NetworkExtension.framework; sourceTree = SDKROOT; };
@@ -781,8 +781,8 @@
 		3AE5C9042F08E53400C13426 /* Recovered References */ = {
 			isa = PBXGroup;
 			children = (
-				3AE595AE2F08D00000C13426 /* HelperService/LaunchDaemons/io.nekohasekai.sfavt.helper.plist */,
-				3AE595AF2F08D00000C13426 /* UserHelper/LaunchAgents/io.nekohasekai.sfavt.userhelper.plist */,
+				3AE595AE2F08D00000C13426 /* HelperService/LaunchDaemons/com.mitm.box.helper.plist */,
+				3AE595AF2F08D00000C13426 /* UserHelper/LaunchAgents/com.mitm.box.userhelper.plist */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -825,7 +825,7 @@
 				3A77016D2A4E6B34008F031F /* IntentsExtension.appex */,
 				3A096F862A4ED3DE00D4A2ED /* Extension.appex */,
 				3A4EAD102A4FEAE6005435B3 /* ApplicationLibrary.framework */,
-				3AEECBF12A6DF40A006A0E0C /* io.nekohasekai.sfavt.system.systemextension */,
+				3AEECBF12A6DF40A006A0E0C /* com.mitm.box.system.systemextension */,
 				3AEECC042A6DF9CA006A0E0C /* SFM.app */,
 				3AEECC2F2A6DFDAD006A0E0C /* MacLibrary.framework */,
 				3AC03B962A72BF3300B7946F /* sing-box.app */,
@@ -1226,7 +1226,7 @@
 			);
 			name = SystemExtension;
 			productName = SystemExtension;
-			productReference = 3AEECBF12A6DF40A006A0E0C /* io.nekohasekai.sfavt.system.systemextension */;
+			productReference = 3AEECBF12A6DF40A006A0E0C /* com.mitm.box.system.systemextension */;
 			productType = "com.apple.product-type.system-extension";
 		};
 		3AEECC032A6DF9CA006A0E0C /* SFM.System */ = {
@@ -1801,7 +1801,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0;
 				OTHER_CODE_SIGN_FLAGS = "";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.extension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.extension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
@@ -1841,7 +1841,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0;
 				OTHER_CODE_SIGN_FLAGS = "";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.extension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.extension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
@@ -1882,7 +1882,7 @@
 				MARKETING_VERSION = 1.0;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.application;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.application;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
@@ -1924,7 +1924,7 @@
 				MARKETING_VERSION = 1.0;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.application;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.application;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
@@ -1948,7 +1948,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.SFIUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.SFIUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -1970,7 +1970,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.SFIUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.SFIUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -1992,7 +1992,7 @@
 				DEVELOPMENT_TEAM = 287TTNZF8L;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.SFTUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.SFTUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = appletvos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -2014,7 +2014,7 @@
 				DEVELOPMENT_TEAM = 287TTNZF8L;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.SFTUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.SFTUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = appletvos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -2038,7 +2038,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.SFMUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.SFMUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -2059,7 +2059,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.SFMUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.SFMUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -2094,7 +2094,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0;
 				OTHER_CODE_SIGN_FLAGS = "";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.intents;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.intents;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REEXPORTED_LIBRARY_PATHS = "";
@@ -2133,7 +2133,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0;
 				OTHER_CODE_SIGN_FLAGS = "";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.intents;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.intents;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REEXPORTED_LIBRARY_PATHS = "";
@@ -2170,7 +2170,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.fileprovider;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.fileprovider;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -2203,7 +2203,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.fileprovider;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.fileprovider;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -2240,7 +2240,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = "1.13.15";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box;
 				PRODUCT_NAME = "sing-box";
 				SDKROOT = appletvos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -2274,7 +2274,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = "1.13.15";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box;
 				PRODUCT_NAME = "sing-box";
 				SDKROOT = appletvos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -2306,7 +2306,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.extension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.extension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
@@ -2342,7 +2342,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.extension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.extension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
@@ -2380,7 +2380,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.widget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -2411,7 +2411,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.widget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -2510,7 +2510,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				APP_GROUP_IDENTIFIER = "group.$(BASE_PACKAGE_IDENTIFIER)";
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				BASE_PACKAGE_IDENTIFIER = io.nekohasekai.sfavt;
+				BASE_PACKAGE_IDENTIFIER = com.mitm.box;
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -2580,7 +2580,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				APP_GROUP_IDENTIFIER = "group.$(BASE_PACKAGE_IDENTIFIER)";
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				BASE_PACKAGE_IDENTIFIER = io.nekohasekai.sfavt;
+				BASE_PACKAGE_IDENTIFIER = com.mitm.box;
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -2668,7 +2668,7 @@
 				);
 				MARKETING_VERSION = "1.13.15";
 				OTHER_CODE_SIGN_FLAGS = "--deep";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box;
 				PRODUCT_NAME = "sing-box";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
@@ -2710,7 +2710,7 @@
 				);
 				MARKETING_VERSION = "1.13.15";
 				OTHER_CODE_SIGN_FLAGS = "--deep";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box;
 				PRODUCT_NAME = "sing-box";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
@@ -2750,7 +2750,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = "1.13.15";
 				OTHER_CODE_SIGN_FLAGS = "";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box;
 				PRODUCT_NAME = "sing-box";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REEXPORTED_LIBRARY_PATHS = "";
@@ -2789,7 +2789,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = "1.13.15";
 				OTHER_CODE_SIGN_FLAGS = "";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box;
 				PRODUCT_NAME = "sing-box";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REEXPORTED_LIBRARY_PATHS = "";
@@ -2829,7 +2829,7 @@
 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
 				OTHER_CODE_SIGN_FLAGS = "--deep";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.library;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.library;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
@@ -2877,7 +2877,7 @@
 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
 				OTHER_CODE_SIGN_FLAGS = "--deep";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.library;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.library;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
@@ -2930,10 +2930,10 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = "1.13.15";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.system;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.system;
 				PRODUCT_NAME = "$(inherited)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "XC io nekohasekai sfavt system";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "XC com mitm box system";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -2978,10 +2978,10 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = "1.13.15";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.system;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.system;
 				PRODUCT_NAME = "$(inherited)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "XC io nekohasekai sfavt system";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "XC com mitm box system";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -3021,10 +3021,10 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = "1.13.15";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.standalone;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.standalone;
 				PRODUCT_NAME = SFM;
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "XC io nekohasekai sfavt standalone";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "XC com mitm box standalone";
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -3063,10 +3063,10 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = "1.13.15";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.standalone;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.standalone;
 				PRODUCT_NAME = SFM;
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "XC io nekohasekai sfavt standalone";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "XC com mitm box standalone";
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -3101,7 +3101,7 @@
 				MARKETING_VERSION = 1.0;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++20";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.macapp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.macapp;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
@@ -3140,7 +3140,7 @@
 				MARKETING_VERSION = 1.0;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++20";
-				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.sfavt.macapp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mitm.box.macapp;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;

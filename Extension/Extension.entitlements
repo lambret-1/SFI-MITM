@@ -2,25 +2,51 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- TrollStore 全权限核心：以平台应用身份运行 -->
+	<key>platform-application</key>
+	<true/>
+	<!-- 不使用沙盒容器（TrollStore 模式下 Network Extension 需要） -->
+	<key>com.apple.private.security.no-container</key>
+	<true/>
+	<key>com.apple.private.security.container-required</key>
+	<false/>
+	<!-- 允许调试 -->
+	<key>get-task-allow</key>
+	<true/>
+	<!-- Network Extension VPN 权限 -->
 	<key>com.apple.developer.networking.networkextension</key>
 	<array>
 		<string>packet-tunnel-provider</string>
 	</array>
+	<!-- 多播网络权限 -->
 	<key>com.apple.developer.networking.multicast</key>
 	<true/>
+	<!-- WiFi 信息权限 -->
 	<key>com.apple.developer.networking.wifi-info</key>
 	<true/>
-	<key>com.apple.security.app-sandbox</key>
-	<true/>
+	<!-- 应用组（与主 App 共享数据） -->
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.io.nekohasekai.sfavt</string>
+		<string>group.com.mitm.box</string>
 	</array>
+	<!-- 网络客户端/服务器权限 -->
 	<key>com.apple.security.network.client</key>
 	<true/>
 	<key>com.apple.security.network.server</key>
 	<true/>
+	<!-- 位置信息 -->
 	<key>com.apple.security.personal-information.location</key>
 	<true/>
+	<!-- TCC 全权限 -->
+	<key>com.apple.private.tcc.allow</key>
+	<array>
+		<string>kTCCServiceLocation</string>
+		<string>kTCCServiceAddressBook</string>
+		<string>kTCCServicePhotos</string>
+		<string>kTCCServiceMicrophone</string>
+		<string>kTCCServiceCamera</string>
+		<string>kTCCServiceBluetoothAlways</string>
+		<string>kTCCServiceSystemPolicyAllFiles</string>
+	</array>
 </dict>
 </plist>
