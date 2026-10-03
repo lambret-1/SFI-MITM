@@ -116,8 +116,16 @@ jobs:
           set -e
           echo "=== 构建退出码: $BUILD_EXIT ==="
           if [ "$BUILD_EXIT" -ne 0 ]; then
-            echo "❌ xcodebuild 构建失败，日志如下："
-            tail -120 build.log
+            echo "❌ xcodebuild 构建失败 (exit=$BUILD_EXIT)"
+            echo ""
+            echo "=== 编译错误（grep error:）==="
+            grep -n "error:" build.log | head -40
+            echo ""
+            echo "=== 编译警告（前 20 条）==="
+            grep -n "warning:" build.log | head -20
+            echo ""
+            echo "=== build.log 最后 50 行 ==="
+            tail -50 build.log
             exit 1
           fi
           echo "✅ xcodebuild 构建成功"
