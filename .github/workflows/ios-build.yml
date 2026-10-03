@@ -21,7 +21,7 @@ env:
 jobs:
   build-sfi-ios:
     name: 构建 SFI iOS 未签名 IPA（真机仅 arm64）
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - name: 检出 SFI 代码
         uses: actions/checkout@v4
@@ -82,7 +82,11 @@ jobs:
       - name: 构建 SFI iOS App（Release，arm64 真机，未签名）
         working-directory: sfi
         run: |
+          echo "=== Xcode 版本 ==="
+          xcodebuild -version
+          echo ""
           echo "=== xcodebuild 构建（arm64 真机优化）==="
+          set +e
           xcodebuild \
             -project sing-box.xcodeproj \
             -scheme "${{ env.XCODE_SCHEME }}" \
@@ -98,8 +102,9 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            build > build.log 2>&1 || true
-          BUILD_EXIT=${PIPESTATUS[0]}
+            build > build.log 2>&1
+          BUILD_EXIT=$?
+          set -e
           echo "=== 构建退出码: $BUILD_EXIT ==="
           if [ "$BUILD_EXIT" -ne 0 ]; then
             echo "❌ xcodebuild 构建失败，日志如下："
