@@ -20,7 +20,7 @@
 >    +-- MITM Service
 > ```
 >
-> SFI 当前属于 sing-box Apple 客户端体系，负责配置管理、TUN/VPN Extension 和 libbox 集成；旧版 SFI 仓库已经归档，后续维护集中在 `sing-box-for-apple`。([GitHub][1])
+> SFI 当前属于 sing-box Apple 客户端体系，负责配置管理、TUN/VPN Extension 和 libbox 集成；
 
 ---
 
@@ -1085,7 +1085,7 @@ Internet
 * 动态证书
 * HTTP/2
 * WebSocket
-* iOS 越狱部署
+* iOS 越狱部署（暂时不做）
 
 ---
 
@@ -1115,7 +1115,7 @@ Internet
 >    +── Outbound
 > ```
 >
-> SFI 当前架构本身就是 Apple UI + Network Extension + Libbox Core 模式，MITM 应放在 Core 层，而不是 Swift 网络层。([Sing Box][1])
+> SFI 当前架构本身就是 Apple UI + Network Extension + Libbox Core 模式，MITM 应放在 Core 层，而不是 Swift 网络层。
 
 ---
 
@@ -1921,7 +1921,7 @@ GetMITMStatus()
 Libbox.xcframework
 ```
 
-SFI 使用 Libbox framework 作为核心桥接。([GitHub][2])
+SFI 使用 Libbox framework 作为核心桥接
 
 ---
 
@@ -2037,7 +2037,7 @@ ca.key
 
 ---
 
-# Phase 16：越狱版本支持
+# Phase 16：越狱版本支持(暂时不做)
 
 ## Commit 0016
 
@@ -2074,7 +2074,7 @@ MITMCAInstaller.swift
 目录：
 
 ```
-/var/mobile/singbox/
+/var/jb/mobile/singbox/
 
 ├── config.json
 
