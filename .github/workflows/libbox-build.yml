@@ -1,4 +1,4 @@
-name: Libbox.xcframework 构建
+name: Libbox 构建（iOS 设备专用）
 
 on:
   push:
@@ -9,6 +9,7 @@ on:
       - 'protocol/mitm/**'
       - 'option/mitm.go'
       - 'daemon/**'
+      - 'cmd/internal/build_libbox/**'
       - '.github/workflows/libbox-build.yml'
   workflow_dispatch:
 
@@ -20,8 +21,8 @@ env:
   GO_VERSION: "1.25.5"
 
 jobs:
-  build-libbox:
-    name: 构建 Libbox.xcframework
+  build-libbox-ios:
+    name: 构建 Libbox.framework（ios-arm64）
     runs-on: macos-14
     steps:
       - name: 检出代码
@@ -37,52 +38,70 @@ jobs:
         run: |
           go version
           xcodebuild -version
-          xcodebuild -showsdks | grep -E "iphoneos|iphonesimulator|macosx|appletvos"
+          xcrun --sdk iphoneos --show-sdk-path
 
       - name: 安装 gomobile
         run: |
           go install github.com/sagernet/gomobile/cmd/gomobile@latest
           gomobile init
-          echo "gomobile 安装完成"
 
-      - name: 编译 sing-box 主程序（预检）
+      - name: Go 构建缓存（libbox 依赖预编译）
         run: |
-          go build -o singbox ./cmd/sing-box
-          ./singbox version
+          echo "=== 预编译依赖，加速 gomobile bind ==="
+          go build ./experimental/libbox/... 2>&1 || true
+          echo "依赖预编译完成"
 
-      - name: 构建 Libbox.xcframework
+      - name: 构建 Libbox.framework（仅 ios-arm64 设备切片）
         run: |
-          echo "=== 开始构建 Libbox.xcframework（仅 iOS 设备 + iOS 模拟器，SFI 项目所需）==="
-          go run ./cmd/internal/build_libbox -target apple -platform ios,iossimulator
-          echo "=== 构建完成 ==="
-
-      - name: 验证产物
-        run: |
-          echo "=== 检查 Libbox.xcframework ==="
-          ls -lh Libbox.xcframework/
-          echo ""
-          echo "=== 支持的平台切片 ==="
-          ls -1 Libbox.xcframework/
-          echo ""
-          echo "=== iOS 设备切片架构 ==="
-          if [ -d "Libbox.xcframework/ios-arm64" ]; then
-            lipo -info Libbox.xcframework/ios-arm64/Libbox.framework/Libbox 2>/dev/null || file Libbox.xcframework/ios-arm64/Libbox.framework/Libbox
+          echo "=== 仅构建 iOS 设备切片（ios-arm64），不构建模拟器/tvOS/macOS ==="
+          go run ./cmd/internal/build_libbox -target apple -platform ios
+          echo "=== 构建完成，检查输出 ==="
+          ls -lh
+          if [ -d "Libbox.framework" ]; then
+            echo "✅ 输出为 Libbox.framework（单平台）"
+            ls -lh Libbox.framework/
+          elif [ -d "Libbox.xcframework" ]; then
+            echo "⚠️ 输出为 Libbox.xcframework，检查内含切片"
+            ls -1 Libbox.xcframework/
+          else
+            echo "❌ 未找到构建产物"
+            exit 1
           fi
-          echo ""
-          echo "=== 产物总大小 ==="
-          du -sh Libbox.xcframework
 
-      - name: 打包 Libbox.xcframework
+      - name: 验证 framework 架构
         run: |
-          zip -r -y Libbox.xcframework.zip Libbox.xcframework/
-          ls -lh Libbox.xcframework.zip
-          echo "ZIP_SIZE=$(stat -f%z Libbox.xcframework.zip)" >> $GITHUB_ENV
+          if [ -d "Libbox.framework" ]; then
+            FRAMEWORK_BIN="Libbox.framework/Libbox"
+          else
+            FRAMEWORK_BIN=$(find Libbox.xcframework -name "Libbox" -type f | grep -i "ios-arm64" | head -1)
+          fi
+          echo "=== 验证二进制架构 ==="
+          lipo -info "$FRAMEWORK_BIN" 2>/dev/null || file "$FRAMEWORK_BIN"
+          echo ""
+          echo "=== 产物大小 ==="
+          if [ -d "Libbox.framework" ]; then
+            du -sh Libbox.framework
+          else
+            du -sh Libbox.xcframework
+          fi
 
-      - name: 上传 Libbox.xcframework Artifact
+      - name: 打包产物
+        run: |
+          if [ -d "Libbox.framework" ]; then
+            zip -r -y Libbox-ios-arm64.framework.zip Libbox.framework/
+            echo "PRODUCT_NAME=Libbox-ios-arm64.framework.zip" >> $GITHUB_ENV
+          else
+            zip -r -y Libbox-ios-arm64.xcframework.zip Libbox.xcframework/
+            echo "PRODUCT_NAME=Libbox-ios-arm64.xcframework.zip" >> $GITHUB_ENV
+          fi
+          ls -lh *.zip
+
+      - name: 上传 Libbox 产物
         uses: actions/upload-artifact@v4
         with:
-          name: Libbox.xcframework
+          name: Libbox-ios-arm64
           path: |
-            Libbox.xcframework.zip
+            *.zip
+            Libbox.framework/
             Libbox.xcframework/
           retention-days: 30
