@@ -2,6 +2,7 @@ package mitm
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -80,15 +81,26 @@ func (s *Service) Intercept(ctx context.Context, 连接 net.Conn, 元数据 adap
 
 	s.logger.DebugContext(ctx, "mitm: ClientHello SNI=", 客户端问候.SNI, " ALPN=", 客户端问候.ALPN)
 
+	// 写入内存日志缓冲区：记录成功读取到的 ClientHello 事件
+	sni展示 := 客户端问候.SNI
+	if sni展示 == "" {
+		sni展示 = "(empty)"
+	}
+	s.日志缓冲区.写入(日志级别Info, fmt.Sprintf("TLS ClientHello\nSNI: %s", sni展示))
+
 	// 步骤 2-3：域名匹配，不匹配则回退
 	if 客户端问候.SNI == "" || !s.匹配器.匹配(客户端问候.SNI) {
 		s.logger.DebugContext(ctx, "mitm: 域名未匹配，回退正常路由: ", 客户端问候.SNI)
+		// 写入内存日志缓冲区：域名未匹配回退事件
+		s.日志缓冲区.写入(日志级别Debug, fmt.Sprintf("域名未匹配，回退正常路由: %s", 客户端问候.SNI))
 		回退连接 := 新建回退读取器(连接, 客户端问候.原始数据)
 		路由器.RouteConnectionEx(ctx, 回退连接, 元数据, 关闭回调)
 		return
 	}
 
 	s.logger.InfoContext(ctx, "mitm: 域名命中，开始 TLS 终止: ", 客户端问候.SNI)
+	// 写入内存日志缓冲区：域名命中开始 TLS 终止事件
+	s.日志缓冲区.写入(日志级别Info, fmt.Sprintf("域名命中，开始 TLS 终止: %s", 客户端问候.SNI))
 
 	// 活跃连接计数 +1，拦截结束时 -1
 	s.增加连接()
@@ -99,6 +111,8 @@ func (s *Service) Intercept(ctx context.Context, 连接 net.Conn, 元数据 adap
 	tls连接, err := s.终止TLS(客户端回退连接, 客户端问候.SNI, 客户端问候.ALPN)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "mitm: TLS 终止失败: ", err)
+		// 写入内存日志缓冲区：TLS 终止失败事件
+		s.日志缓冲区.写入(日志级别Error, fmt.Sprintf("TLS 终止失败: %v", err))
 		连接.Close()
 		if 关闭回调 != nil {
 			关闭回调(err)
@@ -108,6 +122,8 @@ func (s *Service) Intercept(ctx context.Context, 连接 net.Conn, 元数据 adap
 	defer tls连接.Close()
 
 	s.logger.InfoContext(ctx, "mitm: 客户端 TLS 握手完成，协议: ", tls连接.ConnectionState().NegotiatedProtocol)
+	// 写入内存日志缓冲区：客户端 TLS 握手完成事件
+	s.日志缓冲区.写入(日志级别Info, fmt.Sprintf("客户端 TLS 握手完成，协议: %s", tls连接.ConnectionState().NegotiatedProtocol))
 
 	// 步骤 6-7：根据 ALPN 选择 HTTP 引擎处理解密后的流量
 	协商协议 := tls连接.ConnectionState().NegotiatedProtocol

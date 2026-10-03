@@ -2,6 +2,7 @@ package mitm
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net"
 
 	E "github.com/sagernet/sing/common/exceptions"
@@ -29,6 +30,9 @@ func (s *Service) 终止TLS(客户端连接 net.Conn, 域名 string, alpn []stri
 	if err != nil {
 		return nil, 包装错误(err, "签发叶子证书失败")
 	}
+
+	// 写入内存日志缓冲区：记录叶子证书签发成功事件
+	s.日志缓冲区.写入(日志级别Info, fmt.Sprintf("Certificate generated\n域名: %s", 域名))
 
 	// 构造 TLS 配置
 	tls配置 := &tls.Config{

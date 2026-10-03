@@ -234,6 +234,26 @@ func (i *Instance) GetMITMStatus() MITMStatus {
 	}
 }
 
+// GetMITMLogs 获取 MITM 服务日志
+// 从 sing-box 服务上下文中获取 MITM Service 实例并拉取内存环形缓冲区日志。
+// 未配置 MITM 服务时返回 nil。
+func (i *Instance) GetMITMLogs() []mitm.MITMLogEntry {
+	mitm服务 := mitm.FromContext(i.ctx)
+	if mitm服务 == nil {
+		return nil
+	}
+	return mitm服务.GetMITMLogs()
+}
+
+// ClearMITMLogs 清空 MITM 服务日志
+// 清空 MITM Service 内存环形缓冲区中的全部日志条目。
+func (i *Instance) ClearMITMLogs() {
+	mitm服务 := mitm.FromContext(i.ctx)
+	if mitm服务 != nil {
+		mitm服务.ClearMITMLogs()
+	}
+}
+
 func parseConfig(ctx context.Context, configContent string) (option.Options, error) {
 	options, err := json.UnmarshalExtendedContext[option.Options](ctx, []byte(configContent))
 	if err != nil {

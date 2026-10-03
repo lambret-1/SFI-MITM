@@ -3,6 +3,7 @@ package mitm
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -46,6 +47,9 @@ func 新建HTTP1处理器(服务 *Service, 路由器 adapter.Router, 元数据 a
 func (h *HTTP1处理器) 处理连接(ctx context.Context, 客户端连接 net.Conn) error {
 	读取器 := bufio.NewReader(客户端连接)
 	写入器 := bufio.NewWriter(客户端连接)
+
+	// 写入内存日志缓冲区：记录 HTTP/1.1 引擎开始处理
+	h.服务.日志缓冲区.写入(日志级别Debug, "HTTP 引擎开始处理，协议: http/1.1")
 
 	for {
 		// 设置读取超时，避免空闲连接挂起
@@ -103,6 +107,10 @@ func (h *HTTP1处理器) 处理请求(ctx context.Context, req *http.Request, �
 		return h.发送错误响应(写入器, http.StatusBadGateway, "上游连接失败")
 	}
 	defer 上游连接.Close()
+
+	// 写入内存日志缓冲区：记录通过 Router 成功建立上游连接事件
+	// （当前实现未直接回传 outbound 标签，统一记录为已建立上游连接）
+	h.服务.日志缓冲区.写入(日志级别Info, fmt.Sprintf("Outbound: 已建立上游连接 (域名: %s)", 域名))
 
 	// 写入请求到上游
 	if err := req.Write(上游连接); err != nil {

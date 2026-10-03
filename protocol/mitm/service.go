@@ -53,6 +53,10 @@ type Service struct {
 
 	// 活跃连接数 当前正在进行 MITM 解密的连接数（原子操作）
 	活跃连接数 atomic.Int32
+
+	// 日志缓冲区 内存环形缓冲区，保存关键 MITM 事件日志
+	// 无论 MITM 是否启用都会初始化；未启用时缓冲区保持为空。
+	日志缓冲区 *日志环形缓冲区
 }
 
 // NewService 构造 MITM 服务
@@ -65,6 +69,9 @@ func NewService(ctx context.Context, logger log.ContextLogger, tag string, optio
 		logger:  logger,
 		options: options,
 		叶子缓存: 新证书缓存(默认缓存容量),
+		// 无论 MITM 是否启用，都初始化日志缓冲区；
+		// 未启用时缓冲区保持为空，不会写入任何事件。
+		日志缓冲区: 新日志环形缓冲区(默认日志容量),
 	}
 
 	if !options.Enabled {
@@ -185,4 +192,25 @@ func (s *Service) 增加连接() {
 // 减少连接 原子减少活跃连接计数，在拦截结束时调用
 func (s *Service) 减少连接() {
 	s.活跃连接数.Add(-1)
+}
+
+// GetMITMLogs 导出方法：返回内存环形缓冲区中的全部日志条目
+//
+// 供 daemon/libbox 等外部包调用，用于在 Debug Console 中展示 MITM 关键事件。
+// 返回的切片为缓冲区内部数据的副本，按时间从旧到新排序。
+// MITM 未启用时缓冲区为空，返回长度为 0 的切片。
+func (s *Service) GetMITMLogs() []MITMLogEntry {
+	if s.日志缓冲区 == nil {
+		return []MITMLogEntry{}
+	}
+	return s.日志缓冲区.获取全部()
+}
+
+// ClearMITMLogs 导出方法：清空内存环形缓冲区中的全部日志条目
+//
+// 供 daemon/libbox 等外部包调用，对应 Debug Console 中的「清空日志」按钮。
+func (s *Service) ClearMITMLogs() {
+	if s.日志缓冲区 != nil {
+		s.日志缓冲区.清空()
+	}
 }

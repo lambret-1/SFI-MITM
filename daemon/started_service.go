@@ -20,6 +20,7 @@ import (
 	"github.com/sagernet/sing-box/experimental/locale"
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/protocol/group"
+	"github.com/sagernet/sing-box/protocol/mitm"
 	"github.com/sagernet/sing-box/service/oomkiller"
 	"github.com/sagernet/sing/common"
 	"github.com/sagernet/sing/common/memory"
@@ -2128,4 +2129,24 @@ func (s *StartedService) GetMITMStatus() MITMStatus {
 		return MITMStatus{}
 	}
 	return instance.GetMITMStatus()
+}
+
+// GetMITMLogs 获取 MITM 服务日志
+// 委托给当前运行的 sing-box 实例拉取内存环形缓冲区日志。
+// 服务未启动时返回 nil。
+func (s *StartedService) GetMITMLogs() []mitm.MITMLogEntry {
+	instance := s.Instance()
+	if instance == nil {
+		return nil
+	}
+	return instance.GetMITMLogs()
+}
+
+// ClearMITMLogs 清空 MITM 服务日志
+// 委托给当前运行的 sing-box 实例清空内存环形缓冲区日志。
+func (s *StartedService) ClearMITMLogs() {
+	instance := s.Instance()
+	if instance != nil {
+		instance.ClearMITMLogs()
+	}
 }

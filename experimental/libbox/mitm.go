@@ -143,3 +143,83 @@ func GenerateMITMCA(certificatePath string, privateKeyPath string) error {
 
 	return nil
 }
+
+// MITMLogEntry MITM 日志条目
+//
+// 供 Swift 端 Debug Console 展示 MITM 关键事件日志。
+// 字段类型均为 gomobile bind 支持的类型（string/int32），
+// 字段名使用英文以兼容 gomobile bind。
+type MITMLogEntry struct {
+	// Timestamp 时间戳（RFC3339 UTC 格式，如 "2026-10-04T12:00:00Z"）
+	Timestamp string
+	// Level 日志级别（0=Trace, 1=Debug, 2=Info, 3=Warn, 4=Error）
+	Level int32
+	// Message 日志消息内容
+	Message string
+}
+
+// MITMLogIterator MITM 日志迭代器
+//
+// 供 Swift 端遍历日志条目，避免一次性把整个切片跨 gomobile 边界传递。
+// 遵循与 experimental/libbox/iterator.go 相同的 Len/HasNext/Next 模式。
+type MITMLogIterator struct {
+	// 条目列表 内部保存的日志条目指针切片（不导出字段，仅通过方法访问）
+	条目列表 []*MITMLogEntry
+	// 游标 指向下一个待返回条目的下标
+	游标 int
+}
+
+// Len 返回迭代器中剩余的日志条目总数
+func (it *MITMLogIterator) Len() int32 {
+	return int32(len(it.条目列表))
+}
+
+// HasNext 判断是否还有下一条日志
+func (it *MITMLogIterator) HasNext() bool {
+	return it.游标 < len(it.条目列表)
+}
+
+// Next 返回下一条日志条目；遍历结束后返回 nil
+func (it *MITMLogIterator) Next() *MITMLogEntry {
+	if it.游标 >= len(it.条目列表) {
+		return nil
+	}
+	条目 := it.条目列表[it.游标]
+	it.游标++
+	return 条目
+}
+
+// GetMITMLogs 获取 MITM 服务日志
+//
+// 返回日志迭代器，供 Swift 端遍历显示在 Debug Console 中。
+// 服务未启动或未配置 MITM 时返回空迭代器（Len=0）。
+//
+// 此方法运行在 Network Extension 进程中，由 Swift 端直接调用，
+// 不需要通过 gRPC 跨进程通信。
+func (s *CommandServer) GetMITMLogs() *MITMLogIterator {
+	instance := s.Instance()
+	if instance == nil {
+		return &MITMLogIterator{}
+	}
+	日志列表 := instance.GetMITMLogs()
+	条目列表 := make([]*MITMLogEntry, 0, len(日志列表))
+	for _, 条目 := range 日志列表 {
+		条目列表 = append(条目列表, &MITMLogEntry{
+			Timestamp: 条目.Timestamp,
+			Level:     条目.Level,
+			Message:   条目.Message,
+		})
+	}
+	return &MITMLogIterator{条目列表: 条目列表}
+}
+
+// ClearMITMLogs 清空 MITM 服务日志
+//
+// 清空 MITM 服务内存环形缓冲区中的全部日志条目，
+// 对应 Debug Console 中的「清空日志」按钮。
+func (s *CommandServer) ClearMITMLogs() {
+	instance := s.Instance()
+	if instance != nil {
+		instance.ClearMITMLogs()
+	}
+}

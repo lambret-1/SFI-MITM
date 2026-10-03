@@ -3,6 +3,7 @@ package mitm
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"net/http"
 
@@ -41,6 +42,9 @@ func 新建HTTP2处理器(服务 *Service, 路由器 adapter.Router, 元数据 a
 // HTTP/2 连接包含多个并发流，http2.Server 内部管理流生命周期，
 // 每个流通过 Handler 独立处理请求/响应。
 func (h *HTTP2处理器) 处理连接(ctx context.Context, 客户端连接 net.Conn) error {
+	// 写入内存日志缓冲区：记录 HTTP/2 引擎开始处理
+	h.服务.日志缓冲区.写入(日志级别Debug, "HTTP 引擎开始处理，协议: h2")
+
 	处理器 := &http2请求处理器{
 		服务:   h.服务,
 		路由器: h.路由器,
@@ -96,6 +100,10 @@ func (h *http2请求处理器) ServeHTTP(w http.ResponseWriter, req *http.Reques
 		return
 	}
 	defer 上游连接.Close()
+
+	// 写入内存日志缓冲区：记录通过 Router 成功建立上游连接事件
+	// （当前实现未直接回传 outbound 标签，统一记录为已建立上游连接）
+	h.服务.日志缓冲区.写入(日志级别Info, fmt.Sprintf("Outbound: 已建立上游连接 (域名: %s)", 域名))
 
 	// 使用 http2.Client 发送请求
 	上游传输 := &http2.Transport{
