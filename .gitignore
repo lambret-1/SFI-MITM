@@ -1,5 +1,6 @@
 /.idea/
 /Libbox.xcframework/
+/Frameworks/Libbox.xcframework/
 xcuserdata/
 .DS_Store
 /build/
