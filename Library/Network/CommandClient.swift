@@ -384,7 +384,16 @@ public class CommandClient: ObservableObject {
             }
         }
 
-        func initializeClashMode(_ modeList: LibboxStringIterator?, currentMode: String?) {
+        func writeOutbounds(_ message: (any LibboxOutboundGroupItemIteratorProtocol)?) {
+            guard let message else {
+                return
+            }
+            guard isActiveConnection() else { return }
+            // iOS 平台暂不处理出站组项更新
+            _ = message
+        }
+
+        func initializeClashMode(_ modeList: (any LibboxStringIteratorProtocol)?, currentMode: String?) {
             DispatchQueue.main.async { [self] in
                 guard isActiveConnection() else { return }
                 commandClient.clashModeList = modeList!.toArray()
@@ -399,7 +408,7 @@ public class CommandClient: ObservableObject {
             }
         }
 
-        func write(_ events: LibboxConnectionEvents?) {
+        func writeConnectionEvents(_ events: LibboxConnectionEvents?) {
             guard let events else {
                 return
             }

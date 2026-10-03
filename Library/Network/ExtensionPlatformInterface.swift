@@ -14,13 +14,13 @@ public class ExtensionPlatformInterface: NSObject, LibboxPlatformInterfaceProtoc
         self.tunnel = tunnel
     }
 
-    public func openTun(_ options: LibboxTunOptions?, ret0_: UnsafeMutablePointer<Int32>?) throws {
+    public func openTun(_ options: (any LibboxTunOptionsProtocol)?, ret0_: UnsafeMutablePointer<Int32>?) throws {
         try runBlocking { [self] in
             try await openTun0(options, ret0_)
         }
     }
 
-    private func openTun0(_ options: LibboxTunOptions?, _ ret0_: UnsafeMutablePointer<Int32>?) async throws {
+    private func openTun0(_ options: (any LibboxTunOptionsProtocol)?, _ ret0_: UnsafeMutablePointer<Int32>?) async throws {
         guard let options else {
             throw NSError(domain: "ExtensionPlatformInterface", code: 0, userInfo: [NSLocalizedDescriptionKey: String(localized: "Nil options")])
         }
@@ -39,7 +39,7 @@ public class ExtensionPlatformInterface: NSObject, LibboxPlatformInterfaceProtoc
             settings.mtu = NSNumber(value: options.getMTU())
 
             let dnsServer = try options.getDNSServerAddress()
-            let dnsSettings = NEDNSSettings(servers: [dnsServer?.next() ?? ""])
+            let dnsSettings = NEDNSSettings(servers: [dnsServer.next()])
             settings.dnsSettings = dnsSettings
 
             var ipv4Address: [String] = []
@@ -498,5 +498,77 @@ public class ExtensionPlatformInterface: NSObject, LibboxPlatformInterfaceProtoc
 
     public func systemCertificates() -> LibboxStringIterator? {
         nil
+    }
+
+    // MARK: - LibboxPlatformInterfaceProtocol 新增方法（iOS 平台默认实现）
+
+    public func cancelNotification(_ identifier: String?, typeID: Int32) throws {
+        // iOS 平台暂不支持按标识符取消通知
+    }
+
+    public func checkPlatformShell() throws {
+        throw NSError(domain: "ExtensionPlatformInterface", code: 1, userInfo: [NSLocalizedDescriptionKey: "iOS 平台不支持 Shell"])
+    }
+
+    public func closeNeighborMonitor(_ listener: (any LibboxNeighborUpdateListenerProtocol)?) throws {
+        // iOS 平台暂不支持邻居监控
+    }
+
+    public func createAutoRedirect(_ options: Data?, handler: (any LibboxAutoRedirectHandlerProtocol)?) throws -> any LibboxAutoRedirectSessionProtocol {
+        throw NSError(domain: "ExtensionPlatformInterface", code: 2, userInfo: [NSLocalizedDescriptionKey: "iOS 平台不支持 AutoRedirect"])
+    }
+
+    public func createBridge(_ options: LibboxBridgeOptions?) throws -> any LibboxBridgeSessionProtocol {
+        throw NSError(domain: "ExtensionPlatformInterface", code: 3, userInfo: [NSLocalizedDescriptionKey: "iOS 平台不支持 Bridge"])
+    }
+
+    public func lookupSFTPServer(_ error: NSErrorPointer) -> String {
+        ""
+    }
+
+    public func lookupUser(_ username: String?) throws -> LibboxPlatformUser {
+        LibboxPlatformUser()
+    }
+
+    public func openShellSession(_ user: LibboxPlatformUser?, command: String?, environ: (any LibboxStringIteratorProtocol)?, term: String?, rows: Int32, cols: Int32) throws -> any LibboxShellSessionProtocol {
+        throw NSError(domain: "ExtensionPlatformInterface", code: 4, userInfo: [NSLocalizedDescriptionKey: "iOS 平台不支持 Shell 会话"])
+    }
+
+    public func readSystemSSHHostKey(_ error: NSErrorPointer) -> String {
+        ""
+    }
+
+    public func registerMyInterface(_ name: String?) {
+        // iOS 平台暂不需要注册网络接口
+    }
+
+    public func startNeighborMonitor(_ listener: (any LibboxNeighborUpdateListenerProtocol)?) throws {
+        // iOS 平台暂不支持邻居监控
+    }
+
+    public func tailscaleHostname() -> String {
+        ""
+    }
+
+    public func usePlatformAutoRedirect() -> Bool {
+        false
+    }
+
+    public func usePlatformBridge() -> Bool {
+        false
+    }
+
+    public func usePlatformShell() -> Bool {
+        false
+    }
+
+    // MARK: - LibboxCommandServerHandlerProtocol 新增方法
+
+    public func connectSSHAgent(_ ret0_: UnsafeMutablePointer<Int32>?) throws {
+        throw NSError(domain: "ExtensionPlatformInterface", code: 5, userInfo: [NSLocalizedDescriptionKey: "iOS 平台不支持 SSH Agent"])
+    }
+
+    public func triggerNativeCrash() throws {
+        // 调试用方法，iOS 平台不执行实际崩溃
     }
 }
