@@ -1,0 +1,88 @@
+name: Libbox.xcframework 构建
+
+on:
+  push:
+    branches:
+      - sing-box
+    paths:
+      - 'experimental/libbox/**'
+      - 'protocol/mitm/**'
+      - 'option/mitm.go'
+      - 'daemon/**'
+      - '.github/workflows/libbox-build.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: libbox-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.25.5"
+
+jobs:
+  build-libbox:
+    name: 构建 Libbox.xcframework
+    runs-on: macos-14
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 显示环境信息
+        run: |
+          go version
+          xcodebuild -version
+          xcodebuild -showsdks | grep -E "iphoneos|iphonesimulator|macosx|appletvos"
+
+      - name: 安装 gomobile
+        run: |
+          go install github.com/sagernet/gomobile/cmd/gomobile@latest
+          gomobile init
+          echo "gomobile 安装完成"
+
+      - name: 编译 sing-box 主程序（预检）
+        run: |
+          go build -o singbox ./cmd/sing-box
+          ./singbox version
+
+      - name: 构建 Libbox.xcframework
+        run: |
+          echo "=== 开始构建 Libbox.xcframework（iOS/iOS Simulator/tvOS/tvOS Simulator/macOS）==="
+          go run ./cmd/internal/build_libbox -target apple
+          echo "=== 构建完成 ==="
+
+      - name: 验证产物
+        run: |
+          echo "=== 检查 Libbox.xcframework ==="
+          ls -lh Libbox.xcframework/
+          echo ""
+          echo "=== 支持的平台切片 ==="
+          ls -1 Libbox.xcframework/
+          echo ""
+          echo "=== iOS 设备切片架构 ==="
+          if [ -d "Libbox.xcframework/ios-arm64" ]; then
+            lipo -info Libbox.xcframework/ios-arm64/Libbox.framework/Libbox 2>/dev/null || file Libbox.xcframework/ios-arm64/Libbox.framework/Libbox
+          fi
+          echo ""
+          echo "=== 产物总大小 ==="
+          du -sh Libbox.xcframework
+
+      - name: 打包 Libbox.xcframework
+        run: |
+          zip -r -y Libbox.xcframework.zip Libbox.xcframework/
+          ls -lh Libbox.xcframework.zip
+          echo "ZIP_SIZE=$(stat -f%z Libbox.xcframework.zip)" >> $GITHUB_ENV
+
+      - name: 上传 Libbox.xcframework Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Libbox.xcframework
+          path: |
+            Libbox.xcframework.zip
+            Libbox.xcframework/
+          retention-days: 30
