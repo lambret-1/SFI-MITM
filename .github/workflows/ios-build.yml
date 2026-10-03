@@ -15,15 +15,12 @@ concurrency:
 env:
   GO_VERSION: "1.25.5"
   XCODE_SCHEME: "SFI"
-  XCODE_PROJECT: "sing-box.xcodeproj"
   BUILD_CONFIGURATION: "Release"
   DERIVED_DATA_PATH: "build/DerivedData"
-  ARCHIVE_PATH: "build/SFI.xcarchive"
-  EXPORT_PATH: "build/export"
 
 jobs:
   build-sfi-ios:
-    name: 构建 SFI iOS 未签名 IPA
+    name: 构建 SFI iOS 未签名 IPA（真机仅 arm64）
     runs-on: macos-14
     steps:
       - name: 检出 SFI 代码
@@ -46,118 +43,100 @@ jobs:
           cache: true
           cache-dependency-path: sing-box-core/go.sum
 
-      - name: 显示环境信息
-        run: |
-          go version
-          xcodebuild -version
-          xcodebuild -showsdks | grep -E "iphoneos|iphonesimulator"
+      - name: 缓存 gomobile 二进制
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: ${{ runner.os }}-gomobile-${{ env.GO_VERSION }}
 
       - name: 安装 gomobile
         run: |
-          go install github.com/sagernet/gomobile/cmd/gomobile@latest
-          gomobile init
-          echo "gomobile 安装完成"
+          if [ ! -f ~/go/bin/gomobile ]; then
+            go install github.com/sagernet/gomobile/cmd/gomobile@latest
+            gomobile init
+          fi
+          echo "gomobile 就绪: $(gomobile version 2>/dev/null || echo 'installed')"
 
-      - name: 构建 Libbox.xcframework（仅 iOS 设备+模拟器切片）
+      - name: 构建 Libbox.framework（仅 iOS 真机 arm64，不构建模拟器）
         working-directory: sing-box-core
         run: |
-          echo "=== 构建 Libbox.xcframework ==="
-          go run ./cmd/internal/build_libbox -target apple -platform ios,iossimulator
-          echo "=== 构建完成 ==="
+          echo "=== 构建 Libbox（iOS 真机切片）==="
+          # gomobile 的 ios target 包含设备+模拟器，构建后删除模拟器切片
+          go run ./cmd/internal/build_libbox -target apple -platform ios
+          echo "=== 原始 xcframework 切片 ==="
+          ls -1 Libbox.xcframework/
+          echo ""
+          echo "=== 删除模拟器切片（仅保留真机 ios-arm64）==="
+          rm -rf Libbox.xcframework/ios-arm64_x86_64-simulator
+          echo "=== 最终 xcframework 切片 ==="
+          ls -1 Libbox.xcframework/
           du -sh Libbox.xcframework
 
-      - name: 复制 Libbox.xcframework 到 SFI Frameworks 目录
+      - name: 复制 Libbox.xcframework 到 SFI Frameworks
         run: |
-          echo "=== 复制 Libbox.xcframework ==="
           rm -rf sfi/Frameworks/Libbox.xcframework
           cp -R sing-box-core/Libbox.xcframework sfi/Frameworks/
-          echo "=== 复制完成 ==="
+          echo "✅ Libbox 复制完成"
           ls -1 sfi/Frameworks/Libbox.xcframework/
-          du -sh sfi/Frameworks/Libbox.xcframework
 
-      - name: 构建 SFI iOS App（未签名，TrollStore 兼容）
+      - name: 构建 SFI iOS App（Release，arm64 真机，未签名）
         working-directory: sfi
         run: |
-          echo "=== Xcode 版本 ==="
-          xcodebuild -version
-          echo ""
-          echo "=== 诊断：xcodebuild -list（验证项目可读取）==="
-          xcodebuild -project sing-box.xcodeproj -list 2>&1 | head -30 || echo "⚠️ xcodebuild -list 返回非零"
-          echo ""
-          echo "=== xcodebuild 构建（Release，未签名）==="
-          # 注意：shell 有 -e，用 || true 防止 xcodebuild 失败时提前终止
+          echo "=== xcodebuild 构建（arm64 真机优化）==="
           xcodebuild \
             -project sing-box.xcodeproj \
             -scheme "${{ env.XCODE_SCHEME }}" \
             -configuration "${{ env.BUILD_CONFIGURATION }}" \
             -destination 'generic/platform=iOS' \
             -derivedDataPath "${{ env.DERIVED_DATA_PATH }}" \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            DEBUG_INFORMATION_FORMAT=dwarf \
+            BUILD_LIBRARY_FOR_DISTRIBUTION=NO \
+            SWIFT_OPTIMIZATION_LEVEL=-O \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            ONLY_ACTIVE_ARCH=NO \
             build > build.log 2>&1 || true
           BUILD_EXIT=${PIPESTATUS[0]}
           echo "=== 构建退出码: $BUILD_EXIT ==="
-          echo "=== 构建日志（最后100行）==="
-          tail -100 build.log
           if [ "$BUILD_EXIT" -ne 0 ]; then
-            echo "❌ xcodebuild 构建失败 (exit=$BUILD_EXIT)"
+            echo "❌ xcodebuild 构建失败，日志如下："
+            tail -120 build.log
             exit 1
           fi
           echo "✅ xcodebuild 构建成功"
+          tail -5 build.log
 
-      - name: 验证构建产物（TrollStore 兼容）
+      - name: 验证构建产物
         working-directory: sfi
         run: |
-          echo "=== 查找 .app 产物 ==="
-          find "${{ env.DERIVED_DATA_PATH }}/Build/Products" -name "*.app" -type d 2>/dev/null | head -10
-          echo ""
           APP_PATH=$(find "${{ env.DERIVED_DATA_PATH }}/Build/Products" -name "SFI.app" -type d 2>/dev/null | head -1)
           if [ -z "$APP_PATH" ]; then
             echo "❌ 未找到 SFI.app"
-            echo "=== Build/Products 目录结构 ==="
             find "${{ env.DERIVED_DATA_PATH }}/Build/Products" -maxdepth 3 -type d 2>/dev/null | head -20
             exit 1
           fi
-          echo "✅ 找到 SFI.app: $APP_PATH"
-          ls -lh "$APP_PATH"
-          echo ""
-          echo "=== 验证 Bundle ID ==="
-          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_PATH/Info.plist" 2>/dev/null || defaults read "$APP_PATH/Info.plist" CFBundleIdentifier 2>/dev/null
-          echo ""
-          echo "=== 验证 Libbox 已嵌入 ==="
-          find "$APP_PATH" -name "Libbox.framework" -type d 2>/dev/null | head -3
-          echo ""
-          echo "=== 验证 entitlements（TrollStore platform-application）==="
-          if [ -f "$APP_PATH/embedded.mobileprovision" ]; then
-            echo "embedded.mobileprovision 存在（未签名构建不应有，TrollStore 会忽略）"
-          else
-            echo "✅ 无 embedded.mobileprovision（TrollStore 兼容）"
-          fi
-          echo ""
-          echo "=== 验证 Network Extension ==="
-          find "$APP_PATH" -name "*.appex" -type d 2>/dev/null | head -3
+          echo "✅ SFI.app: $APP_PATH"
+          echo "Bundle ID: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist" 2>/dev/null || defaults read "$APP_PATH/Info.plist" CFBundleIdentifier 2>/dev/null)"
+          echo "Network Extension: $(find "$APP_PATH" -name '*.appex' -type d 2>/dev/null | head -1)"
+          test ! -f "$APP_PATH/embedded.mobileprovision" && echo "✅ 无 embedded.mobileprovision（TrollStore 兼容）"
 
-      - name: 打包 TrollStore 兼容未签名 IPA
+      - name: 打包未签名 IPA（TrollStore 兼容）
         working-directory: sfi
         run: |
           APP_PATH=$(find "${{ env.DERIVED_DATA_PATH }}/Build/Products" -name "SFI.app" -type d 2>/dev/null | head -1)
-          echo "=== 打包 IPA（TrollStore 兼容，未签名）==="
-          rm -rf Payload
-          mkdir -p Payload
+          rm -rf Payload && mkdir -p Payload
           cp -R "$APP_PATH" Payload/
-          # 移除可能存在的 _CodeSignature（未签名构建）
           find Payload -name "_CodeSignature" -type d -exec rm -rf {} + 2>/dev/null || true
           zip -r -y SFI-TrollStore.ipa Payload/
           rm -rf Payload
-          ls -lh SFI-TrollStore.ipa
           IPA_SIZE=$(stat -f%z SFI-TrollStore.ipa)
           echo "IPA_SIZE=$IPA_SIZE" >> $GITHUB_ENV
-          echo "✅ TrollStore 兼容 IPA 打包完成 ($IPA_SIZE 字节)"
+          echo "✅ IPA 打包完成: $(ls -lh SFI-TrollStore.ipa | awk '{print $5}')"
 
-      - name: 上传 TrollStore 兼容 IPA Artifact
+      - name: 上传 IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: SFI-TrollStore.ipa
