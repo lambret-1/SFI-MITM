@@ -6,7 +6,7 @@ import UserNotifications
     import CoreWLAN
 #endif
 
-public class ExtensionPlatformInterface: NSObject, LibboxPlatformInterface, LibboxCommandServerHandler {
+public class ExtensionPlatformInterface: NSObject, LibboxPlatformInterfaceProtocol, LibboxCommandServerHandlerProtocol {
     private let tunnel: ExtensionProvider
     private var networkSettings: NEPacketTunnelNetworkSettings?
 
@@ -39,7 +39,7 @@ public class ExtensionPlatformInterface: NSObject, LibboxPlatformInterface, Libb
             settings.mtu = NSNumber(value: options.getMTU())
 
             let dnsServer = try options.getDNSServerAddress()
-            let dnsSettings = NEDNSSettings(servers: [dnsServer.value])
+            let dnsSettings = NEDNSSettings(servers: [dnsServer?.next() ?? ""])
             settings.dnsSettings = dnsSettings
 
             var ipv4Address: [String] = []
@@ -496,7 +496,7 @@ public class ExtensionPlatformInterface: NSObject, LibboxPlatformInterface, Libb
         nil
     }
 
-    public func systemCertificates() -> (any LibboxStringIterator)? {
+    public func systemCertificates() -> LibboxStringIterator? {
         nil
     }
 }

@@ -277,7 +277,7 @@ public class CommandClient: ObservableObject {
         }
     }
 
-    private class clientHandler: NSObject, LibboxCommandClientHandler {
+    private class clientHandler: NSObject, LibboxCommandClientHandlerProtocol {
         private let commandClient: CommandClient
         private let connectionToken: UInt64
 
