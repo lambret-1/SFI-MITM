@@ -1,0 +1,97 @@
+name: iOS App 构建
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sing-box-MITM/**'
+      - 'sing-box-for-apple/**'
+      - '.github/workflows/ios-build.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.25.5"
+  SINGBOX_DIR: "sing-box-MITM"
+  APPLE_DIR: "sing-box-for-apple"
+
+jobs:
+  build-ios:
+    name: 构建 Libbox + SFI App
+    runs-on: macos-14
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: ${{ env.SINGBOX_DIR }}/go.sum
+
+      - name: 显示环境信息
+        run: |
+          go version
+          xcodebuild -version
+          xcodebuild -showsdks | grep iphoneos
+
+      - name: 安装 gomobile
+        run: |
+          cd ${{ env.SINGBOX_DIR }}
+          go install github.com/sagernet/gomobile/cmd/gomobile@latest
+          gomobile init
+
+      - name: 构建 Libbox.xcframework
+        run: |
+          cd ${{ env.SINGBOX_DIR }}
+          go run ./cmd/internal/build_libbox -target apple
+          ls -lh Libbox.xcframework/ || ls -lh *.xcframework/
+
+      - name: 复制 Libbox.xcframework 到 SFI
+        run: |
+          cd ${{ env.SINGBOX_DIR }}
+          LIBBOX_FRAMEWORK=$(find . -name "Libbox.xcframework" -type d | head -1)
+          echo "找到 Libbox.xcframework: $LIBBOX_FRAMEWORK"
+          cp -R "$LIBBOX_FRAMEWORK" "../${{ env.APPLE_DIR }}/Frameworks/"
+          ls -lh "../${{ env.APPLE_DIR }}/Frameworks/Libbox.xcframework/"
+
+      - name: 构建 SFI iOS App
+        run: |
+          cd ${{ env.APPLE_DIR }}
+          xcodebuild build \
+            -scheme SFI \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE_SPECIFIER="" 2>&1 | tail -50
+
+      - name: 打包未签名 IPA
+        run: |
+          cd ${{ env.APPLE_DIR }}
+          APP_PATH=$(find build/DerivedData -name "SFI.app" -type d | head -1)
+          echo "找到 App: $APP_PATH"
+          if [ -z "$APP_PATH" ]; then
+            echo "❌ 未找到 SFI.app"
+            exit 1
+          fi
+          mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/
+          cd build
+          zip -r App-unsigned.ipa Payload/
+          ls -lh App-unsigned.ipa
+          echo "IPA_SIZE=$(stat -f%z App-unsigned.ipa)" >> $GITHUB_ENV
+
+      - name: 上传 IPA 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: App-unsigned.ipa
+          path: ${{ env.APPLE_DIR }}/build/App-unsigned.ipa
+          retention-days: 30
