@@ -259,6 +259,19 @@ lib_android:
 lib_apple:
 	go run ./cmd/internal/build_libbox -target apple
 
+# libbox-ios 仅构建 iOS 真机（arm64）切片的 Libbox.framework
+# 用于开发阶段快速迭代，跳过模拟器和其他 Apple 平台
+libbox-ios:
+	go build ./...
+	go run ./cmd/internal/build_libbox -target apple -platform ios
+
+# libbox-apple 构建全平台 Apple 切片的 Libbox.xcframework
+# 包含 iOS 真机、iOS 模拟器、macOS、tvOS 等平台
+# 对应 CI 工作流 .github/workflows/libbox-build.yml
+libbox-apple:
+	go build ./...
+	go run ./cmd/internal/build_libbox -target apple
+
 lib_windows:
 	$(SING_FFI) generate --config $(LIBBOX_FFI_CONFIG) --platform-type csharp
 
