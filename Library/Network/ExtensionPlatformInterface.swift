@@ -6,7 +6,7 @@ import UserNotifications
     import CoreWLAN
 #endif
 
-public class ExtensionPlatformInterface: NSObject, LibboxPlatformInterfaceProtocol, LibboxCommandServerHandlerProtocol {
+public class ExtensionPlatformInterface: NSObject, LibboxPlatformInterface, LibboxCommandServerHandler {
     private let tunnel: ExtensionProvider
     private var networkSettings: NEPacketTunnelNetworkSettings?
 
@@ -14,13 +14,13 @@ public class ExtensionPlatformInterface: NSObject, LibboxPlatformInterfaceProtoc
         self.tunnel = tunnel
     }
 
-    public func openTun(_ options: LibboxTunOptionsProtocol?, ret0_: UnsafeMutablePointer<Int32>?) throws {
+    public func openTun(_ options: LibboxTunOptions?, ret0_: UnsafeMutablePointer<Int32>?) throws {
         try runBlocking { [self] in
             try await openTun0(options, ret0_)
         }
     }
 
-    private func openTun0(_ options: LibboxTunOptionsProtocol?, _ ret0_: UnsafeMutablePointer<Int32>?) async throws {
+    private func openTun0(_ options: LibboxTunOptions?, _ ret0_: UnsafeMutablePointer<Int32>?) async throws {
         guard let options else {
             throw NSError(domain: "ExtensionPlatformInterface", code: 0, userInfo: [NSLocalizedDescriptionKey: String(localized: "Nil options")])
         }
@@ -496,7 +496,7 @@ public class ExtensionPlatformInterface: NSObject, LibboxPlatformInterfaceProtoc
         nil
     }
 
-    public func systemCertificates() -> (any LibboxStringIteratorProtocol)? {
+    public func systemCertificates() -> (any LibboxStringIterator)? {
         nil
     }
 }

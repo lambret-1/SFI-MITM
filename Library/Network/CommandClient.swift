@@ -277,7 +277,7 @@ public class CommandClient: ObservableObject {
         }
     }
 
-    private class clientHandler: NSObject, LibboxCommandClientHandlerProtocol {
+    private class clientHandler: NSObject, LibboxCommandClientHandler {
         private let commandClient: CommandClient
         private let connectionToken: UInt64
 
@@ -384,7 +384,7 @@ public class CommandClient: ObservableObject {
             }
         }
 
-        func initializeClashMode(_ modeList: LibboxStringIteratorProtocol?, currentMode: String?) {
+        func initializeClashMode(_ modeList: LibboxStringIterator?, currentMode: String?) {
             DispatchQueue.main.async { [self] in
                 guard isActiveConnection() else { return }
                 commandClient.clashModeList = modeList!.toArray()

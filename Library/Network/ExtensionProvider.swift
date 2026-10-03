@@ -150,14 +150,16 @@ open class ExtensionProvider: NEPacketTunnelProvider {
 
         let stderrPath = URL(fileURLWithPath: tempPath, isDirectory: true).appendingPathComponent("stderr.log").path
         var stderrError: NSError?
-        LibboxRedirectStderr(stderrPath, &stderrError)
+        // LibboxRedirectStderr 在新版 libbox 中已移除，暂不启用 stderr 重定向
+        // LibboxRedirectStderr(stderrPath, &stderrError)
         if let stderrError {
             throw ExtensionStartupError("(packet-tunnel) redirect stderr error: \(stderrError.localizedDescription)")
         }
 
         #if !os(macOS)
             let ignoreMemoryLimit = (effectiveOptions["ignoreMemoryLimit"] as? NSNumber)?.boolValue ?? false
-            LibboxSetMemoryLimit(!ignoreMemoryLimit)
+            // LibboxSetMemoryLimit 在新版 libbox 中已移除，暂不启用内存限制
+            // LibboxSetMemoryLimit(!ignoreMemoryLimit)
         #endif
 
         var error: NSError?
