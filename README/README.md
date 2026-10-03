@@ -26,7 +26,7 @@
 
 # 一、源码仓库结构 
 
-推荐工作区：
+工作区：
 
 ```
 workspace/
@@ -55,7 +55,7 @@ workspace/
          └── Libbox.xcframework
 ```
 
-`sng-box-for-apple` 当前包含 SFI、Extension、Jailbreak 等 Apple 平台组件。([GitHub][2])
+`sng-box-for-apple` 当前包含 SFI、Extension、Jailbreak 等 Apple 平台组件。
 
 ---
 
