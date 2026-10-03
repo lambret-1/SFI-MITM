@@ -1085,7 +1085,7 @@ Internet
 * 动态证书
 * HTTP/2
 * WebSocket
-* iOS 越狱部署（暂时不做）
+* iOS 越狱部署
 
 ---
 
@@ -1115,35 +1115,8 @@ Internet
 >    +── Outbound
 > ```
 >
-> SFI 当前架构本身就是 Apple UI + Network Extension + Libbox Core 模式，MITM 应放在 Core 层，而不是 Swift 网络层。
+> SFI 当前架构本身就是 Apple UI + Network Extension + Libbox Core 模式，MITM 应放在 Core 层，而不是 Swift 网络层
 
----
-
-# 总体 Git 分支规划
-
-建议维护两个仓库：
-
-## sing-box fork
-
-```text
-sing-box
-
-main
- |
- └── feature/mitm-core
-```
-
----
-
-## SFI fork
-
-```text
-sing-box-for-apple
-
-dev
- |
- └── feature/mitm-support
-```
 
 ---
 
