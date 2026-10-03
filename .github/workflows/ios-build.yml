@@ -23,11 +23,19 @@ jobs:
     name: 构建 SFI iOS 未签名 IPA（真机仅 arm64）
     runs-on: macos-15
     steps:
-      - name: 检出 SFI 代码（含子模块）
+      - name: 检出 SFI 代码
         uses: actions/checkout@v4
         with:
           path: sfi
-          submodules: recursive
+
+      - name: 初始化 git submodule（Runestone）
+        working-directory: sfi
+        run: |
+          git submodule update --init --recursive
+          echo "=== Frameworks 目录 ==="
+          ls -la Frameworks/
+          echo "=== Runestone Package.swift ==="
+          ls -la Frameworks/Runestone/Package.swift 2>/dev/null && echo "✅ Runestone 已初始化" || echo "❌ Runestone 未初始化"
 
       - name: 检出 sing-box 核心代码（用于构建 Libbox）
         uses: actions/checkout@v4
