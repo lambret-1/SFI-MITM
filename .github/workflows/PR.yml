@@ -398,7 +398,57 @@ jobs:
           with open(os.environ['GITHUB_ENV'], 'a') as f:
               f.write(f"TOTAL_ERRORS={total_errors}\n")
           EOF
+- name: 推送报告到仓库
+        if: always() && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            TARGET_BRANCH="${{ github.head_ref }}"
+          else
+            TARGET_BRANCH="${{ github.ref_name }}"
+          fi
+          
+          echo "=== 触发事件: ${{ github.event_name }} ==="
+          echo "=== 目标分支: $TARGET_BRANCH ==="
+          
+          if [ ! -f log/README.md ]; then
+            echo "❌ 报告文件未生成，无法推送"
+            exit 1
+          fi
 
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          git add log/README.md
+          
+          echo "=== 当前改动状态 ==="
+          git status
+          
+          if git diff --cached --quiet; then
+            echo "✅ log/README.md 内容无变化，跳过提交"
+            exit 0
+          fi
+
+          echo "=== 产生新提交 ==="
+          git commit -m "docs: 自动更新代码检查报告 [skip ci]"
+
+          echo "=== 推送到远程分支 $TARGET_BRANCH ==="
+          if ! git push origin HEAD:$TARGET_BRANCH; then
+            echo "⚠️ 普通推送失败，尝试拉取最新代码后重试..."
+            git fetch origin $TARGET_BRANCH
+            cp log/README.md /tmp/README.md
+            git reset --hard origin/$TARGET_BRANCH
+            mkdir -p log
+            cp /tmp/README.md log/README.md
+            git add log/README.md
+            git commit -m "docs: 自动更新代码检查报告 [skip ci]" || echo "无新内容需提交"
+            git push origin HEAD:$TARGET_BRANCH || {
+              echo "❌ 推送失败！请检查："
+              echo "1. 仓库 Settings -> Actions -> General -> Workflow permissions 是否设为 Read and write"
+              echo "2. 分支是否有保护规则（Settings -> Branches）"
+              exit 1
+            }
+          fi
+          echo "✅ 报告已推送到 $TARGET_BRANCH 分支"
       
       - name: 上传最终报告为 Artifact
         if: always()
