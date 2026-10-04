@@ -18,6 +18,7 @@ permissions:
 jobs:
   # ============================================================
   # 任务 1：快速静态检查
+  # 核心改变：所有步骤无论成功还是失败，都会往 quick_summary.log 写入状态
   # ============================================================
   quick-check:
     name: 静态检查
@@ -38,22 +39,34 @@ jobs:
             --include='*.yaml' --include='*.json' \
             --include='*.md' . 2>/dev/null; then
             echo "❌ 发现未解决的冲突标记" | tee -a quick_errors.log
+            echo "❌ 检查冲突标记 | 发现未解决的冲突标记" >> quick_summary.log
             exit 1
           fi
           echo "✅ 无冲突标记"
+          echo "✅ 检查冲突标记 | 无冲突标记" >> quick_summary.log
 
       - name: 检查 Info.plist 语法
         if: always()
         run: |
           FOUND=0
+          ERRORS=""
           while IFS= read -r -d '' f; do
             FOUND=1
             if ! python3 -c "import plistlib,sys; plistlib.load(open(sys.argv[1],'rb'))" "$f" 2>/dev/null; then
               echo "❌ plist 语法错误: $f" | tee -a quick_errors.log
-              exit 1
+              ERRORS="${ERRORS}${f} "
             fi
           done < <(find . -name 'Info.plist' -not -path './.git/*' -print0)
-          if [ "$FOUND" -eq 0 ]; then echo "⚠️ 未找到 Info.plist"; else echo "✅ 所有 Info.plist 合法"; fi
+          if [ "$FOUND" -eq 0 ]; then
+            echo "⚠️ 未找到 Info.plist"
+            echo "⚠️ 检查 Info.plist 语法 | 未找到文件" >> quick_summary.log
+          elif [ -n "$ERRORS" ]; then
+            echo "❌ 检查 Info.plist 语法 | 语法错误: $ERRORS" >> quick_summary.log
+            exit 1
+          else
+            echo "✅ 所有 Info.plist 合法"
+            echo "✅ 检查 Info.plist 语法 | 所有文件合法" >> quick_summary.log
+          fi
 
       - name: 检查意外提交的文件
         if: always()
@@ -63,55 +76,73 @@ jobs:
           if [ -n "$FOUND" ]; then
             echo "❌ 发现不应提交的文件：" | tee -a quick_errors.log
             echo "$FOUND" | tee -a quick_errors.log
+            echo "❌ 检查意外提交的文件 | 发现不应提交的文件" >> quick_summary.log
             exit 1
           fi
           echo "✅ 无意外文件"
+          echo "✅ 检查意外提交的文件 | 无异常文件" >> quick_summary.log
 
       - name: 检查 pbxproj 有效性
         if: always()
         run: |
           FOUND=0
+          ERRORS=""
           while IFS= read -r -d '' f; do
             FOUND=1
             open_count=$(tr -cd '{' < "$f" | wc -c)
             close_count=$(tr -cd '}' < "$f" | wc -c)
             if [ "$open_count" -ne "$close_count" ]; then
-              echo "❌ pbxproj 大括号不匹配: $f ($open_count vs $close_count)" | tee -a quick_errors.log
-              exit 1
+              echo "❌ pbxproj 大括号不匹配: $f" | tee -a quick_errors.log
+              ERRORS="${ERRORS}${f} "
             fi
             if ! grep -q 'rootObject' "$f"; then
               echo "❌ pbxproj 缺少 rootObject: $f" | tee -a quick_errors.log
-              exit 1
+              ERRORS="${ERRORS}${f} "
             fi
           done < <(find . -name 'project.pbxproj' -not -path './.git/*' -print0)
-          if [ "$FOUND" -eq 0 ]; then echo "⚠️ 未找到 project.pbxproj"; else echo "✅ pbxproj 有效"; fi
+          if [ "$FOUND" -eq 0 ]; then
+            echo "⚠️ 检查 pbxproj 有效性 | 未找到文件" >> quick_summary.log
+          elif [ -n "$ERRORS" ]; then
+            echo "❌ 检查 pbxproj 有效性 | 存在无效文件" >> quick_summary.log
+            exit 1
+          else
+            echo "✅ 检查 pbxproj 有效性 | 结构完整" >> quick_summary.log
+          fi
 
       - name: 检查 entitlements
         if: always()
         run: |
           ENT=$(find . -name '*.entitlements' -not -path './.git/*' | head -1)
-          if [ -z "$ENT" ]; then echo "⚠️ 未找到 entitlements 文件"; exit 0; fi
+          if [ -z "$ENT" ]; then
+            echo "⚠️ 检查 entitlements | 未找到文件" >> quick_summary.log
+            exit 0
+          fi
           echo "检查: $ENT"
           if ! grep -q 'com.apple.developer.networking.networkextension' "$ENT"; then
             echo "❌ 缺少关键权限: com.apple.developer.networking.networkextension" | tee -a quick_errors.log
+            echo "❌ 检查 entitlements | 缺少网络扩展权限" >> quick_summary.log
             exit 1
           fi
           if grep -qE 'get-task-allow.*true' "$ENT"; then
-            echo "❌ entitlements 包含 get-task-allow=true（调试用，不应提交）" | tee -a quick_errors.log
+            echo "❌ entitlements 包含 get-task-allow=true" | tee -a quick_errors.log
+            echo "❌ 检查 entitlements | 包含调试权限 get-task-allow=true" >> quick_summary.log
             exit 1
           fi
           echo "✅ entitlements 检查通过"
+          echo "✅ 检查 entitlements | 权限配置正确" >> quick_summary.log
 
       - name: 检查大文件
         if: always()
         run: |
           BIG=$(find . -type f -size +5M -not -path './.git/*' -not -path './build/*' | head -20)
           if [ -n "$BIG" ]; then
-            echo "❌ 发现大文件（>5MB），不应提交：" | tee -a quick_errors.log
+            echo "❌ 发现大文件（>5MB）：" | tee -a quick_errors.log
             echo "$BIG" | tee -a quick_errors.log
+            echo "❌ 检查大文件 | 发现超过 5MB 的文件" >> quick_summary.log
             exit 1
           fi
           echo "✅ 无异常大文件"
+          echo "✅ 检查大文件 | 无超过 5MB 的文件" >> quick_summary.log
 
       - name: 检查硬编码密钥
         if: always()
@@ -121,9 +152,11 @@ jobs:
             --include='*.swift' --include='*.plist' --include='*.json' \
             --include='*.yml' --include='*.yaml' --include='*.sh' . 2>/dev/null; then
             echo "❌ 疑似是硬编码密钥" | tee -a quick_errors.log
+            echo "❌ 检查硬编码密钥 | 发现疑似密钥" >> quick_summary.log
             exit 1
           fi
           echo "✅ 无硬编码密钥"
+          echo "✅ 检查硬编码密钥 | 无硬编码密钥" >> quick_summary.log
 
       - name: 检查空白错误
         if: always()
@@ -131,13 +164,16 @@ jobs:
           BASE_REF: ${{ github.base_ref || 'sing-box-for-apple' }}
         run: |
           if ! git rev-parse --verify "origin/${BASE_REF}" >/dev/null 2>&1; then
-            echo "⚠️ 找不到 origin/${BASE_REF}，跳过空白检查"; exit 0
+            echo "⚠️ 检查空白错误 | 找不到对比分支，跳过" >> quick_summary.log
+            exit 0
           fi
           if ! git diff --check "origin/${BASE_REF}...HEAD"; then
             echo "❌ 存在空白错误（行尾空格、tab 混用等）" | tee -a quick_errors.log
+            echo "❌ 检查空白错误 | 存在行尾空格或 Tab 混用" >> quick_summary.log
             exit 1
           fi
           echo "✅ 无空白错误"
+          echo "✅ 检查空白错误 | 无空白错误" >> quick_summary.log
 
       - name: 检查文件末尾换行（警告）
         if: always()
@@ -146,10 +182,12 @@ jobs:
             [ -s "$f" ] && [ "$(tail -c1 "$f" | wc -l)" -eq 0 ] && echo "$f"
           done)
           if [ -n "$FOUND" ]; then
-            echo "⚠️ 以下文件末尾缺少换行（不阻塞）："
+            echo "⚠️ 以下文件末尾缺少换行："
             echo "$FOUND"
+            echo "⚠️ 检查末尾换行 | 部分文件缺少换行（不阻塞）" >> quick_summary.log
           else
             echo "✅ 所有文件末尾有换行"
+            echo "✅ 检查末尾换行 | 所有文件末尾有换行" >> quick_summary.log
           fi
 
       - name: 检查重复文件名（警告）
@@ -157,18 +195,22 @@ jobs:
         run: |
           DUP=$(git ls-files '*.swift' | xargs -n1 basename 2>/dev/null | sort | uniq -d || true)
           if [ -n "$DUP" ]; then
-            echo "⚠️ 存在重复文件名（Xcode 可能行为异常，不阻塞）："
+            echo "⚠️ 存在重复文件名："
             echo "$DUP"
+            echo "⚠️ 检查重复文件名 | 存在重复文件名（不阻塞）" >> quick_summary.log
           else
             echo "✅ 无重复文件名"
+            echo "✅ 检查重复文件名 | 无重复文件名" >> quick_summary.log
           fi
 
-      - name: 上传快速检查错误日志
+      - name: 上传快速检查汇总
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: quick-errors
-          path: quick_errors.log
+          name: quick-check-results
+          path: |
+            quick_errors.log
+            quick_summary.log
           if-no-files-found: ignore
           retention-days: 1
 
@@ -234,8 +276,8 @@ jobs:
       - name: 下载错误日志
         uses: actions/download-artifact@v4
         with:
-          name: quick-errors
-          path: ./artifacts/quick-errors
+          name: quick-check-results
+          path: ./artifacts/quick-check
 
       - name: 下载 SwiftLint JSON
         uses: actions/download-artifact@v4
@@ -247,14 +289,22 @@ jobs:
         run: |
           python3 - << 'EOF'
           import json, os, collections
-          from datetime import datetime, timezone, timedelta  # <--- 新增导入
+          from datetime import datetime, timezone, timedelta
+
+          # 1. 读取静态检查汇总
+          quick_summary = []
+          quick_summary_path = './artifacts/quick-check/quick_summary.log'
+          if os.path.exists(quick_summary_path):
+              with open(quick_summary_path, 'r', encoding='utf-8') as f:
+                  quick_summary = [line.strip() for line in f if line.strip()]
 
           quick_errors = []
-          quick_log_path = './artifacts/quick-errors/quick_errors.log'
+          quick_log_path = './artifacts/quick-check/quick_errors.log'
           if os.path.exists(quick_log_path):
               with open(quick_log_path, 'r', encoding='utf-8') as f:
                   quick_errors = [line.strip() for line in f if line.strip()]
 
+          # 2. 读取 SwiftLint JSON
           swiftlint_issues = []
           swift_json_path = './artifacts/swiftlint/swiftlint.json'
           if os.path.exists(swift_json_path):
@@ -264,29 +314,54 @@ jobs:
               except Exception as e:
                   print(f"⚠️ 解析 SwiftLint JSON 失败: {e}")
 
+          # 3. 统计逻辑
           swift_errors = [i for i in swiftlint_issues if i.get('severity') == 'error']
           swift_warnings = [i for i in swiftlint_issues if i.get('severity') == 'warning']
-          total_errors = len(quick_errors) + len(swift_errors)
+          
+          # 统计静态检查中的失败数
+          static_fails = sum(1 for line in quick_summary if line.startswith('❌'))
+          total_errors = static_fails + len(swift_errors)
 
-          # ================= 修改时间逻辑 =================
-          # 获取中国标准时间 (UTC+8)，而不是默认的 UTC 时间
+          # 获取中国标准时间 (UTC+8)
           china_tz = timezone(timedelta(hours=8))
           china_time = datetime.now(china_tz).strftime('%Y-%m-%d %H:%M:%S')
-          # ================================================
 
+          # 4. 生成 Markdown
           md = []
           md.append("# 🚀 PR 检查汇总报告\n")
           md.append("> 由 GitHub Actions 自动生成，包含静态检查与 SwiftLint 结果。\n")
-          md.append(f"**更新时间 (中国标准时间)**: `{china_time}`\n")  # <--- 使用中国时间
+          md.append(f"**更新时间 (中国标准时间)**: `{china_time}`\n")
 
           md.append("## 📊 总体统计\n")
           md.append(f"- 🔴 **严重错误**: {total_errors}")
           md.append(f"- 🟡 **警告**: {len(swift_warnings)}\n")
 
-          md.append("## 🧱 静态检查结果\n")
-          if not quick_errors:
-              md.append("✅ 静态检查全部通过！\n")
+          md.append("## 🧱 静态检查详情\n")
+          if not quick_summary:
+              md.append("⚠️ 未获取到静态检查汇总信息\n")
           else:
+              md.append("| 检查项 | 状态 | 详情 |")
+              md.append("| :--- | :---: | :--- |")
+              for line in quick_summary:
+                  if line.startswith('❌'):
+                      parts = line.split('|', 1)
+                      name = parts[0].replace('❌', '').strip()
+                      detail = parts[1].strip() if len(parts) > 1 else ''
+                      md.append(f"| {name} | ❌ 失败 | {detail} |")
+                  elif line.startswith('⚠️'):
+                      parts = line.split('|', 1)
+                      name = parts[0].replace('⚠️', '').strip()
+                      detail = parts[1].strip() if len(parts) > 1 else ''
+                      md.append(f"| {name} | ⚠️ 警告 | {detail} |")
+                  else:
+                      parts = line.split('|', 1)
+                      name = parts[0].replace('✅', '').strip()
+                      detail = parts[1].strip() if len(parts) > 1 else ''
+                      md.append(f"| {name} | ✅ 通过 | {detail} |")
+              md.append("")
+
+          if quick_errors:
+              md.append("### 📋 静态检查错误详情\n")
               md.append("```text")
               for e in quick_errors:
                   md.append(e)
