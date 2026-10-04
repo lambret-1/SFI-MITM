@@ -5,9 +5,9 @@ on:
     branches:
       - sing-box
     paths:
+      # MITM 专项：仅 MITM 核心代码修改时触发
       - 'protocol/mitm/**'
       - 'option/mitm.go'
-      - 'daemon/**'
       - 'experimental/libbox/mitm.go'
       - '.github/workflows/mitm-test-matrix.yml'
   pull_request:
@@ -444,9 +444,11 @@ jobs:
       - name: 运行 MITM 模块测试（macOS）
         run: |
           echo "=== macOS MITM 模块测试 ==="
-          # 不使用管道，直接重定向到文件，确保 go test 退出码不被 tail 吞掉
+          # 临时禁用 set -e，确保 go test 失败后仍能捕获退出码并输出日志
+          set +e
           go test -v -count=1 -timeout 180s ./protocol/mitm/... > /tmp/mitm-macos-test.txt 2>&1
           测试退出码=$?
+          set -e
           cat /tmp/mitm-macos-test.txt
           echo ""
           if [ $测试退出码 -ne 0 ]; then

@@ -5,10 +5,8 @@ on:
     branches:
       - sing-box
     paths:
+      # Libbox 构建专项：仅 libbox 相关代码修改时触发
       - 'experimental/libbox/**'
-      - 'protocol/mitm/**'
-      - 'option/mitm.go'
-      - 'daemon/**'
       - 'cmd/internal/build_libbox/**'
       - '.github/workflows/libbox-build.yml'
   workflow_dispatch:

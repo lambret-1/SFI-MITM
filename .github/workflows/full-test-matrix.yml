@@ -4,12 +4,20 @@ on:
   push:
     branches:
       - sing-box
+    paths:
+      # 全项目深度测试：核心 Go 代码修改时触发
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/full-test-matrix.yml'
     paths-ignore:
-      # 仅修改 MITM 相关文件时不触发本流水线，由 MITM 测试矩阵专项处理
+      # 排除 MITM 专项（由 mitm-test-matrix 处理）
       - 'protocol/mitm/**'
       - 'option/mitm.go'
       - 'experimental/libbox/mitm.go'
-      - '.github/workflows/mitm-test-matrix.yml'
+      # 排除实验性包和部署包（由各自专项流水线处理）
+      - 'experimental/**'
+      - 'deploy/**'
       - '**.md'
   pull_request:
     branches:
@@ -59,10 +67,12 @@ jobs:
       - name: 运行全量单元测试（包含 MITM）
         run: |
           echo "=== 全量单元测试（排除 experimental 平台限制包）==="
-          # 不使用管道，直接重定向到文件，确保 go test 退出码不被 tee 吞掉
+          # 临时禁用 set -e，确保 go test 失败后仍能捕获退出码并输出日志
+          set +e
           go test -count=1 -timeout 600s \
             $(go list ./... | grep -v '/experimental/') > /tmp/test-output.txt 2>&1
           测试退出码=$?
+          set -e
           cat /tmp/test-output.txt
           echo ""
           echo "=== 测试结果汇总 ==="
@@ -103,10 +113,12 @@ jobs:
       - name: 运行 Race Detector 全量测试
         run: |
           echo "=== Race Detector 全量测试（排除 experimental 平台限制包）==="
-          # 不使用管道，直接重定向到文件，确保 go test 退出码不被 tee 吞掉
+          # 临时禁用 set -e，确保 go test 失败后仍能捕获退出码并输出日志
+          set +e
           go test -race -count=1 -timeout 600s \
             $(go list ./... | grep -v '/experimental/') > /tmp/race-output.txt 2>&1
           测试退出码=$?
+          set -e
           cat /tmp/race-output.txt
           echo ""
           echo "=== Race 测试结果汇总 ==="
@@ -147,11 +159,13 @@ jobs:
       - name: 运行全量覆盖率测试
         run: |
           echo "=== 收集全量覆盖率（排除 experimental 平台限制包）==="
-          # 不使用管道，直接重定向到文件，确保 go test 退出码不被 tail 吞掉
+          # 临时禁用 set -e，确保 go test 失败后仍能捕获退出码并输出日志
+          set +e
           go test -coverprofile=full_coverage.out -covermode=atomic \
             -count=1 -timeout 600s \
             $(go list ./... | grep -v '/experimental/') > /tmp/coverage-output.txt 2>&1
           测试退出码=$?
+          set -e
           cat /tmp/coverage-output.txt
           echo ""
           if [ $测试退出码 -ne 0 ]; then
@@ -215,10 +229,12 @@ jobs:
       - name: 运行全量测试（macOS，包含 MITM）
         run: |
           echo "=== macOS 全量测试（排除 experimental 平台限制包）==="
-          # 不使用管道，直接重定向到文件，确保 go test 退出码不被 tee 吞掉
+          # 临时禁用 set -e，确保 go test 失败后仍能捕获退出码并输出日志
+          set +e
           go test -count=1 -timeout 600s \
             $(go list ./... | grep -v '/experimental/') > /tmp/macos-test-output.txt 2>&1
           测试退出码=$?
+          set -e
           cat /tmp/macos-test-output.txt
           echo ""
           echo "=== 测试结果汇总 ==="

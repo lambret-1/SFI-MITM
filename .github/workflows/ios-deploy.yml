@@ -5,8 +5,7 @@ on:
     branches:
       - sing-box
     paths:
-      - 'protocol/mitm/**'
-      - 'option/mitm.go'
+      # iOS 部署包专项：仅部署配置和 CA 生成命令修改时触发
       - 'deploy/ios/**'
       - 'cmd/sing-box/cmd_generate_mitm_ca.go'
       - '.github/workflows/ios-deploy.yml'
