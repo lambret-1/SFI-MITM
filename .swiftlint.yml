@@ -1,10 +1,38 @@
+
+  
+  
+  # .swiftlint.yml
+# SwiftLint configuration for sing-box-for-apple
+# 基于 Oppi 配置扩展，针对代理客户端场景调整
+
+# ============================================================
+# 包含与排除
+# ============================================================
+included:
+  - SFA
+  - SFM
+  - SFT
+  - Shared
+  - PacketTunnel
+
 excluded:
   - Frameworks
   - Libbox.xcframework
   - build
+  - .build
+  - DerivedData
+  - Pods
+  - Carthage
+  - .swiftpm
 
+# ============================================================
+# 关闭的规则
+# 这些规则要么与项目风格冲突，要么在代理核心代码中噪音过大。
+# 注意：force_cast / force_try / force_unwrapping 未放在这里，
+# 而是在下方通过 severity 设为 warning。
+# ============================================================
 disabled_rules:
-  - identifier_name
+  - identifier_name               # 代理协议中短变量名（如 i, c, n）常见
   - type_body_length
   - file_length
   - function_body_length
@@ -16,6 +44,144 @@ disabled_rules:
   - trailing_comma
   - function_parameter_count
   - type_name
-  - force_cast
-  - force_try
   - opening_brace
+  - implicit_optional_initialization
+  - blanket_disable_command       # 允许在测试/fixtures 中使用文件级禁用
+  - trailing_whitespace
+
+# ============================================================
+# 启用的 opt-in 规则
+# 只启用能捕捉真实问题、且噪音可控的规则。
+# ============================================================
+opt_in_rules:
+  # 安全性与正确性
+  - force_unwrapping              # 禁止强制解包（设为 warning）
+  - fatal_error_message           # fatalError 必须提供消息
+  - overridden_super_call         # 重写方法必须调用 super
+  - unused_import                 # 未使用的 import（需 analyze）
+  - unused_declaration            # 未使用的声明（需 analyze）
+
+  # 代码简洁与可读性
+  - empty_count                   # .isEmpty 优于 count == 0
+  - empty_string                  # .isEmpty 优于 == ""
+  - contains_over_first_not_nil
+  - contains_over_filter_count
+  - first_where
+  - last_where
+  - closure_spacing
+  - closure_end_indentation
+  - collection_alignment
+  - modifier_order                # 修饰符顺序，如 public static
+  - toggle_bool                   # .toggle() 优于 = !bool
+  - redundant_nil_coalescing
+  - redundant_type_annotation
+  - sorted_first_last
+  - unneeded_parentheses_in_closure_argument
+  - unowned_variable_capture
+
+# ============================================================
+# Analyzer 规则（需在 CI 中运行 `swiftlint analyze`）
+# ============================================================
+analyzer_rules:
+  - unused_import
+  - unused_declaration
+
+# ============================================================
+# 规则严重级别与阈值
+# 长度类规则不关闭，而是设定宽松阈值并统一为 warning。
+# ============================================================
+
+# 长度阈值
+line_length:
+  warning: 150
+  error: 200
+  ignores_comments: true
+  ignores_urls: true
+
+function_body_length:
+  warning: 80
+  error: 150
+
+type_body_length:
+  warning: 400
+  error: 600
+
+file_length:
+  warning: 800
+  error: 1500
+  ignore_comment_only_lines: true
+
+# 复杂度阈值
+cyclomatic_complexity:
+  warning: 20
+  error: 30
+
+function_parameter_count:
+  warning: 8
+  error: 12
+
+# 嵌套层级
+nesting:
+  type_level: 3
+  function_level: 5
+
+# 强制操作一律降为 warning（代理核心中有时难以完全避免）
+force_cast: warning
+force_try: warning
+force_unwrapping: warning
+
+# 其他
+enum_case_associated_values_count:
+  warning: 7
+  error: 10
+
+empty_count: warning
+
+# ============================================================
+# 自定义规则
+# 针对 sing-box 代理客户端的特定场景
+# ============================================================
+custom_rules:
+
+  # 核心网络模块禁止强制解包（PacketTunnel / Shared 中提升为 error）
+  no_force_unwrap_core:
+    name: "核心网络模块禁止强制解包"
+    included: "PacketTunnel|Shared|SFA|SFM|SFT"
+    excluded: "Tests"
+    regex: '(?:\)|\]|\b[A-Za-z_][A-Za-z0-9_\.]*)!(?![=])'
+    message: "核心网络模块请使用可选绑定或 guard 处理 nil"
+    severity: error
+
+  # 网络扩展类应标注 @MainActor 或明确并发隔离
+  main_actor_observable:
+    name: "网络相关 @Observable 类应标注 @MainActor"
+    included: "SFA|SFM|SFT|Shared"
+    excluded: "Tests"
+    regex: '^\s*@Observable\s*(?:\n\s*@[^\n]+\s*)*\n\s*(?:final\s+)?class\b'
+    message: "请为网络相关的 @Observable 类添加 @MainActor 注解"
+    severity: warning
+
+  # 禁止在 PacketTunnelProvider 中使用 DispatchQueue.main.sync
+  no_dispatch_sync_main:
+    name: "禁止在 PacketTunnelProvider 中使用 DispatchQueue.main.sync"
+    included: "PacketTunnel"
+    regex: 'DispatchQueue\.main\.sync'
+    message: "PacketTunnelProvider 中调用 main.sync 可能导致死锁，请使用 async 或 Task { @MainActor in ... }"
+    severity: error
+
+  # 代理日志中避免直接使用 print
+  no_print_in_proxy:
+    name: "代理核心中请使用 OSLog 替代 print"
+    included: "PacketTunnel|Shared|SFA|SFM|SFT"
+    excluded: "Tests"
+    regex: '\bprint\s*\('
+    message: "请使用 os.Logger 或项目封装的日志系统替代 print"
+    severity: warning
+
+  # 禁止硬编码代理端口以外的魔法数字（可根据需要调整）
+  no_magic_port:
+    name: "避免硬编码端口号"
+    included: "PacketTunnel|Shared"
+    regex: '\b(?:port|Port)\s*[:=]\s*(?!0\b)(\d{2,5})\b'
+    message: "端口号建议定义为常量或从配置读取，避免硬编码"
+    severity: warning
