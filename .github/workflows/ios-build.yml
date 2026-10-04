@@ -1,11 +1,12 @@
 name: SFI iOS 构建
 
-off:
+on:
   push:
     branches:
       - sing-box-for-apple
     paths-ignore:
       - '**.md'
+      - '**.yml'
   workflow_dispatch:
 
 concurrency:
