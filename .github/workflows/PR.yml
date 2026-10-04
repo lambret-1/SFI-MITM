@@ -246,9 +246,46 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
+  doc-check:
+    name: 接入文档门禁检查
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 检出 SFI 代码（sing-box-for-apple 分支）
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          path: sfi
+
+      - name: 检出 sing-box 核心代码（用于 API 一致性核对）
+        uses: actions/checkout@v4
+        with:
+          repository: lambret-1/SFI-MITM
+          ref: sing-box
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: sing-box-core
+
+      - name: 运行接入文档门禁检查
+        working-directory: sfi
+        run: |
+          echo "=========================================="
+          echo "  运行接入文档门禁检查"
+          echo "=========================================="
+          chmod +x .github/scripts/check-docs.sh
+          .github/scripts/check-docs.sh
+
+      - name: 上传文档检查结果
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: doc-check-results
+          path: sfi/doc-check-*.log
+          if-no-files-found: ignore
+          retention-days: 1
+
   report:
     name: 生成报告与最终判定
-    needs: [quick-check, swiftlint]
+    needs: [quick-check, swiftlint, doc-check]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
