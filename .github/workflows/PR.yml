@@ -177,7 +177,7 @@ jobs:
         run: |
           FOUND=$(git ls-files '*.swift' '*.plist' '*.yml' '*.md' | while read -r f; do
             [ -s "$f" ] && [ "$(tail -c1 "$f" | wc -l)" -eq 0 ] && echo "$f"
-          done)
+          done || true)
           if [ -n "$FOUND" ]; then
             echo "⚠️ 检查末尾换行 | 部分文件缺少换行（不阻塞）" >> quick_summary.log
           else
