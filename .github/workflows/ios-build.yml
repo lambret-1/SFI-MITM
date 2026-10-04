@@ -189,13 +189,71 @@ jobs:
           echo "Network Extension: $(find "$APP_PATH" -name '*.appex' -type d 2>/dev/null | head -1)"
           test ! -f "$APP_PATH/embedded.mobileprovision" && echo "✅ 无 embedded.mobileprovision（TrollStore 兼容）"
 
-      - name: 打包未签名 IPA（TrollStore 兼容）
+      - name: 打包未签名 IPA（TrollStore 兼容，ldid 注入 entitlements）
         working-directory: sfi
         run: |
+          # 安装 ldid（越狱社区伪签名工具，用于注入 entitlements）
+          brew list ldid &>/dev/null || brew install ldid
+
           APP_PATH=$(find "${{ env.DERIVED_DATA_PATH }}/Build/Products" -name "sing-box.app" -type d 2>/dev/null | head -1)
           rm -rf Payload && mkdir -p Payload
           cp -R "$APP_PATH" Payload/
+
+          # 删除原有代码签名（未签名构建）
           find Payload -name "_CodeSignature" -type d -exec rm -rf {} + 2>/dev/null || true
+          find Payload -name "embedded.mobileprovision" -delete 2>/dev/null || true
+
+          echo "=== 使用 ldid 注入 entitlements ==="
+
+          # 注入主 App entitlements
+          MAIN_BINARY="Payload/sing-box.app/sing-box"
+          if [ -f "$MAIN_BINARY" ] && [ -f "SFI/SFI.entitlements" ]; then
+            ldid -S"SFI/SFI.entitlements" "$MAIN_BINARY"
+            echo "✅ 主 App entitlements 已注入: SFI/SFI.entitlements"
+          else
+            echo "⚠️ 主 App 二进制或 entitlements 不存在"
+          fi
+
+          # 注入所有 Extension 的 entitlements
+          # Network Extension
+          for APPEX in Payload/sing-box.app/PlugIns/*.appex; do
+            if [ -d "$APPEX" ]; then
+              APPEX_NAME=$(basename "$APPEX" .appex)
+              BINARY_NAME=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APPEX/Info.plist" 2>/dev/null || echo "$APPEX_NAME")
+              BINARY_PATH="$APPEX/$BINARY_NAME"
+
+              # 根据 Extension 名称选择对应的 entitlements 文件
+              ENTITLEMENTS_FILE=""
+              case "$APPEX_NAME" in
+                *Extension*|*extension*)
+                  if [ -f "Extension/Extension.entitlements" ]; then
+                    ENTITLEMENTS_FILE="Extension/Extension.entitlements"
+                  fi
+                  ;;
+                *FileProvider*|*fileprovider*)
+                  if [ -f "FileProviderExtension/FileProviderExtension.entitlements" ]; then
+                    ENTITLEMENTS_FILE="FileProviderExtension/FileProviderExtension.entitlements"
+                  fi
+                  ;;
+                *Intents*|*intents*)
+                  if [ -f "IntentsExtension/IntentsExtension.entitlements" ]; then
+                    ENTITLEMENTS_FILE="IntentsExtension/IntentsExtension.entitlements"
+                  fi
+                  ;;
+              esac
+
+              if [ -f "$BINARY_PATH" ] && [ -n "$ENTITLEMENTS_FILE" ]; then
+                ldid -S"$ENTITLEMENTS_FILE" "$BINARY_PATH"
+                echo "✅ $APPEX_NAME entitlements 已注入: $ENTITLEMENTS_FILE"
+              else
+                echo "⚠️ $APPEX_NAME 二进制或 entitlements 不存在，跳过"
+              fi
+            fi
+          done
+
+          echo "=== entitlements 注入完成 ==="
+
+          # 打包 IPA
           zip -r -y SFI-TrollStore.ipa Payload/
           rm -rf Payload
           IPA_SIZE=$(stat -f%z SFI-TrollStore.ipa)
