@@ -198,6 +198,21 @@ func Test签发叶子证书_缓存命中(t *testing.T) {
 	}
 }
 
+// Test终止TLS_域名为空 验证域名为空时签发叶子证书失败
+func Test终止TLS_域名为空(t *testing.T) {
+	svc, _, _ := 创建完整TLS服务(t)
+
+	客户端端, 服务端端 := net.Pipe()
+	defer 客户端端.Close()
+	defer 服务端端.Close()
+
+	// 调用 终止TLS 传入空域名，应该返回签发叶子证书失败错误
+	_, err := svc.终止TLS(服务端端, "", []string{"http/1.1"})
+	if err == nil {
+		t.Error("期望域名为空时返回错误")
+	}
+}
+
 // ========== 读取客户端问候 全分支覆盖 ==========
 
 // Test读取客户端问候_连接关闭 验证连接关闭时读取记录头失败

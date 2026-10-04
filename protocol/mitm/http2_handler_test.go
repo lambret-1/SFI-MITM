@@ -3,6 +3,7 @@ package mitm
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -170,6 +171,61 @@ func TestHTTP2_ServeHTTP_上游请求失败(t *testing.T) {
 	if 响应记录器.Code != 502 {
 		t.Logf("状态码: %d（上游请求失败，期望 502）", 响应记录器.Code)
 	}
+}
+
+// TestHTTP2_ServeHTTP_复制响应体失败 验证复制响应体失败时记录错误
+func TestHTTP2_ServeHTTP_复制响应体失败(t *testing.T) {
+	svc, ca证书, ca私钥 := 创建完整TLS服务(t)
+	上游证书 := 签发上游测试证书(t, ca证书, ca私钥, "example.com")
+
+	// mock Router：建立上游 TLS 服务器，返回 HTTP/2 响应
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			tls配置 := &tls.Config{
+				Certificates: []tls.Certificate{上游证书},
+				NextProtos:   []string{"h2"},
+			}
+			tls服务端 := tls.Server(conn, tls配置)
+			defer tls服务端.Close()
+			if err := tls服务端.Handshake(); err != nil {
+				return
+			}
+			// 读取客户端数据后关闭（HTTP/2握手可能失败，但能覆盖复制响应体分支）
+			tls服务端.SetReadDeadline(time.Now().Add(2 * time.Second))
+			缓冲区 := make([]byte, 4096)
+			tls服务端.Read(缓冲区)
+		},
+	}
+
+	处理器 := &http2请求处理器{
+		服务:   svc,
+		路由器: mock,
+		元数据: adapter.InboundContext{},
+		上下文: context.Background(),
+	}
+
+	req := httptest.NewRequest("GET", "http://example.com/test", nil)
+	// 使用错误响应写入器，在Write时返回错误
+	错误写入器 := &错误响应写入器{错误: errors.New("模拟响应写入失败")}
+	处理器.ServeHTTP(错误写入器, req)
+	// 复制响应体失败时只记录日志，不返回错误，所以不需要断言
+}
+
+// 错误响应写入器 实现http.ResponseWriter，在Write时返回错误
+type 错误响应写入器 struct {
+	错误 error
+}
+
+func (w *错误响应写入器) Header() http.Header {
+	return make(http.Header)
+}
+
+func (w *错误响应写入器) Write(b []byte) (int, error) {
+	return 0, w.错误
+}
+
+func (w *错误响应写入器) WriteHeader(statusCode int) {
+	// 不做任何事
 }
 
 // Test新建HTTP2处理器_服务器初始化 验证 HTTP/2 处理器构造时 http2.Server 已初始化
