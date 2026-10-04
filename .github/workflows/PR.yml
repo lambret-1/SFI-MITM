@@ -1,4 +1,148 @@
-name: SFI PR 快速检查
+swiftlint:
+    name: SwiftLint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: 准备 SwiftLint 配置
+        run: |
+          if [ ! -f .swiftlint.yml ]; then
+            echo "⚠️ 未找到 .swiftlint.yml，使用默认配置"
+            printf 'disabled_rules:\n  - trailing_whitespace\n  - line_length\nopt_in_rules:\n  - force_unwrapping\n  - empty_count\n  - closure_spacing\n' > .swiftlint.yml
+          fi
+
+      - name: 运行 SwiftLint
+        # 这里设置 continue-on-error 让后续的生成报告步骤依然能执行
+        continue-on-error: true
+        run: |
+          for i in 1 2 3; do
+            if docker pull ghcr.io/realm/swiftlint:0.57.1; then
+              break
+            fi
+            echo "Docker 镜像拉取失败，5 秒后重试 ($i/3)..."
+            sleep 5
+          done
+
+          # 1. 用于控制台和日志报错的输出 (人类可读)
+          docker run --rm \
+            -v "$PWD:/work" -w /work \
+            ghcr.io/realm/swiftlint:0.57.1 \
+            swiftlint lint --strict --quiet \
+            --reporter github-actions-logging 2>&1 | tee swiftlint.log
+          
+          # 捕获上一步的退出码
+          STATUS=${PIPESTATUS[0]}
+          
+          # 2. 用于生成可视化报告的 JSON 输出
+          echo "正在生成 JSON 数据..."
+          docker run --rm \
+            -v "$PWD:/work" -w /work \
+            ghcr.io/realm/swiftlint:0.57.1 \
+            swiftlint lint --strict --quiet \
+            --reporter json > swiftlint.json || true
+            
+          # 将 SwiftLint 的退出码存到环境变量，供后续步骤判断
+          echo "SWIFTLINT_STATUS=$STATUS" >> $GITHUB_ENV
+
+      - name: 生成可视化报告 (log/README.md)
+        if: always()
+        run: |
+          python3 - << 'EOF'
+          import json, os, collections
+
+          # 检查 json 文件是否存在
+          if not os.path.exists('swiftlint.json'):
+              print("⚠️ 未生成 swiftlint.json，跳过报告生成")
+              exit(0)
+
+          try:
+              with open('swiftlint.json', 'r', encoding='utf-8') as f:
+                  issues = json.load(f)
+          except Exception as e:
+              print(f"❌ 解析 JSON 失败: {e}")
+              exit(0)
+
+          # 统计逻辑
+          errors = [i for i in issues if i.get('severity') == 'error']
+          warnings = [i for i in issues if i.get('severity') == 'warning']
+
+          # 按文件分组
+          file_stats = collections.defaultdict(lambda: {'error': 0, 'warning': 0})
+          for issue in issues:
+              filepath = issue.get('file', 'Unknown')
+              rel_path = os.path.relpath(filepath, os.getcwd()) if os.path.isabs(filepath) else filepath
+              sev = issue.get('severity', 'warning')
+              if sev in file_stats[rel_path]:
+                  file_stats[rel_path][sev] += 1
+
+          # 生成 Markdown 内容
+          md = []
+          md.append("# SwiftLint 检查报告\n")
+          md.append("> 由 GitHub Actions 自动生成\n")
+          md.append(f"**总计**: 🔴 {len(errors)} 个错误, 🟡 {len(warnings)} 个警告\n")
+          md.append("## 📊 按文件统计\n")
+          md.append("| 文件 | 🔴 错误 | 🟡 警告 |")
+          md.append("| :--- | :---: | :---: |")
+          
+          # 按错误数量降序排列
+          for file, stats in sorted(file_stats.items(), key=lambda x: (x[1]['error'], x[1]['warning']), reverse=True):
+              md.append(f"| `{file}` | {stats['error']} | {stats['warning']} |")
+
+          md.append("\n## 📋 详细问题列表\n")
+          if not issues:
+              md.append("✅ 没有发现问题！\n")
+          else:
+              md.append("| 文件 | 行号 | 级别 | 规则 | 描述 |")
+              md.append("| :--- | :---: | :---: | :--- | :--- |")
+              # 为防日志过长，只展示前 100 条问题
+              for issue in issues[:100]:
+                  filepath = issue.get('file', 'Unknown')
+                  rel_path = os.path.relpath(filepath, os.getcwd()) if os.path.isabs(filepath) else filepath
+                  line = issue.get('line', 0)
+                  rule = issue.get('rule_id', 'Unknown')
+                  reason = issue.get('reason', '').replace('\n', ' ').replace('|', '\\|')
+                  sev = issue.get('severity', 'warning')
+                  icon = '🔴' if sev == 'error' else '🟡'
+                  md.append(f"| `{rel_path}` | L{line} | {icon} | `{rule}` | {reason} |")
+              
+              if len(issues) > 100:
+                  md.append(f"\n> ⚠️ 问题过多，仅展示前 100 条，完整列表请下载 Artifact。\n")
+
+          content = "\n".join(md)
+
+          # 写入 log/README.md
+          os.makedirs('log', exist_ok=True)
+          with open('log/README.md', 'w', encoding='utf-8') as f:
+              f.write(content)
+
+          # 同时输出到 GitHub Actions Step Summary (可视化摘要)
+          summary_path = os.environ.get('GITHUB_STEP_SUMMARY')
+          if summary_path:
+              with open(summary_path, 'a', encoding='utf-8') as f:
+                  f.write(content)
+          
+          print("✅ 报告已生成：log/README.md 及 GitHub Step Summary")
+          EOF
+
+      - name: 上传报告
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: swiftlint-report
+          path: log/README.md
+          retention-days: 14
+
+      - name: 检查最终结果
+        run: |
+          if [ "${{ env.SWIFTLINT_STATUS }}" != "0" ] && [ "${{ env.SWIFTLINT_STATUS }}" != "" ]; then
+            echo "❌ SwiftLint 检查未通过（退出码 ${{ env.SWIFTLINT_STATUS }}）"
+            exit 1
+          fi
+          echo "✅ SwiftLint 检查通过"name: SFI PR 快速检查
 on:
   push:
     branches: [sing-box-for-apple]
