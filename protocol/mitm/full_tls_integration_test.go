@@ -714,6 +714,69 @@ func TestServeHTTP_完整HTTP2转发(t *testing.T) {
 	}
 }
 
+// TestHTTP2_ServeHTTP_重写响应失败 验证HTTP/2重写响应失败时记录警告且响应正常返回
+func TestHTTP2_ServeHTTP_重写响应失败(t *testing.T) {
+	svc, ca证书, ca私钥 := 创建完整TLS服务(t)
+	上游证书 := 签发上游测试证书(t, ca证书, ca私钥, "example.com")
+
+	// 初始化重写引擎，包含 Body 替换规则
+	svc.重写引擎 = rewrite.NewEngine(option.MITMRewriteOptions{
+		Enabled: true,
+		Rules: []option.MITMRewriteRule{
+			{
+				DomainSuffix: []string{"example.com"},
+				BodyReplace: []option.MITMBodyReplaceRule{
+					{
+						Find:    "old",
+						Replace: "new",
+					},
+				},
+			},
+		},
+	})
+
+	// mock Router：建立上游 TLS 服务器（h2），返回无效的 gzip 压缩响应体
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			tls配置 := &tls.Config{
+				Certificates: []tls.Certificate{上游证书},
+				NextProtos:   []string{"h2"},
+			}
+			tls服务端 := tls.Server(conn, tls配置)
+			defer tls服务端.Close()
+			if err := tls服务端.Handshake(); err != nil {
+				return
+			}
+			// 使用 http2.Server 处理 HTTP/2 请求
+			h2服务器 := &http2.Server{}
+			处理器 := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// 返回 Content-Encoding: gzip 但响应体不是有效的 gzip 数据
+				w.Header().Set("Content-Type", "text/plain")
+				w.Header().Set("Content-Encoding", "gzip")
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("this is not valid gzip data"))
+			})
+			h2服务器.ServeConn(tls服务端, &http2.ServeConnOpts{Handler: 处理器})
+		},
+	}
+
+	处理器 := &http2请求处理器{
+		服务:   svc,
+		路由器: mock,
+		元数据: adapter.InboundContext{},
+		上下文: context.Background(),
+	}
+
+	req := httptest.NewRequest("GET", "https://example.com/h2rewrite", nil)
+	响应记录器 := httptest.NewRecorder()
+	处理器.ServeHTTP(响应记录器, req)
+
+	// 重写失败时记录警告，响应仍正常返回200
+	if 响应记录器.Code != 200 {
+		t.Errorf("期望状态码 200，实际 %d", 响应记录器.Code)
+	}
+}
+
 // ========== 处理WebSocket 完整流程测试（稳定版） ==========
 
 // Test处理WebSocket_完整转发_稳定版 使用测试CA签发的上游TLS证书验证WebSocket完整流程
