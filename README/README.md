@@ -371,7 +371,255 @@ sing-box 配置是一个 JSON 对象，包含以下顶层字段（对应 `option
 
 > **注意**：`acme` 不是顶层字段，而是 `certificate_providers` 中 `type=acme` 的证书提供者配置。`debug` 配置位于 `experimental` 对象下。
 
-## 3.2 配置加载流程
+## 3.2 完整配置 JSON 示例（含 MITM）
+
+以下为 iOS 越狱环境下包含 MITM 功能的完整 sing-box 配置示例，涵盖日志、DNS、NTP、入站、出站、路由、服务、实验性功能等全部顶层字段：
+
+```json
+{
+  "$schema": "https://sing-box.sagernet.org/schema.json",
+  "log": {
+    "level": "info",
+    "output": "/var/log/sing-box.log",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "dns-direct",
+        "address": "223.5.5.5",
+        "detour": "direct"
+      },
+      {
+        "tag": "dns-proxy",
+        "address": "https://1.1.1.1/dns-query",
+        "detour": "proxy"
+      }
+    ],
+    "rules": [
+      {
+        "domain_suffix": ["cn"],
+        "server": "dns-direct"
+      }
+    ],
+    "final": "dns-proxy",
+    "independent_cache": true
+  },
+  "ntp": {
+    "enabled": true,
+    "server": "time.apple.com",
+    "server_port": 123,
+    "interval": "30m",
+    "detour": "direct"
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "utun9",
+      "address": ["198.18.0.1/30", "fdfe:dcba:9876::1/126"],
+      "mtu": 9000,
+      "auto_route": true,
+      "strict_route": false,
+      "stack": "gvisor",
+      "dns_handler": "dns-proxy"
+    },
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "listen_port": 7890
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "selector",
+      "tag": "proxy",
+      "outbounds": ["proxy-vmess", "proxy-ss", "direct"],
+      "default": "proxy-vmess"
+    },
+    {
+      "type": "urltest",
+      "tag": "proxy-auto",
+      "outbounds": ["proxy-vmess", "proxy-ss"],
+      "url": "http://www.gstatic.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "vmess",
+      "tag": "proxy-vmess",
+      "server": "example.com",
+      "server_port": 443,
+      "uuid": "00000000-0000-0000-0000-000000000000",
+      "security": "auto",
+      "alter_id": 0,
+      "global_padding": true,
+      "authenticated_length": true,
+      "tls": {
+        "enabled": true,
+        "server_name": "example.com",
+        "insecure": false,
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/vmess",
+        "headers": {
+          "Host": "example.com"
+        }
+      }
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "proxy-ss",
+      "server": "example.com",
+      "server_port": 8388,
+      "method": "aes-256-gcm",
+      "password": "your-password"
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "block",
+      "tag": "block"
+    },
+    {
+      "type": "dns",
+      "tag": "dns-out"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "protocol": "dns",
+        "outbound": "dns-out"
+      },
+      {
+        "domain_suffix": ["cn"],
+        "outbound": "direct"
+      },
+      {
+        "ip_cidr": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": ["google.com", "youtube.com"],
+        "outbound": "proxy"
+      }
+    ],
+    "rule_set": [
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",
+        "download_detour": "proxy"
+      }
+    ],
+    "final": "proxy",
+    "auto_detect_interface": true,
+    "override_android_vpn": true
+  },
+  "services": [
+    {
+      "type": "api",
+      "tag": "api",
+      "listen": "127.0.0.1",
+      "listen_port": 9090
+    },
+    {
+      "type": "mitm",
+      "tag": "mitm",
+      "enabled": true,
+      "ca": {
+        "certificate": "/var/jb/etc/sing-box/ca.pem",
+        "private_key": "/var/jb/etc/sing-box/ca.key"
+      },
+      "match": {
+        "domain": ["api.example.com"],
+        "domain_suffix": ["example.com", "example.net"]
+      },
+      "rewrite": {
+        "enabled": true,
+        "max_body_size": 10485760,
+        "rules": [
+          {
+            "domain_suffix": ["example.com"],
+            "path_prefix": "/api",
+            "method": ["GET", "POST"],
+            "request_header": {
+              "X-Test": "rewritten"
+            },
+            "request_header_delete": ["X-Old-Header"],
+            "response_header": {
+              "X-MITM": "sing-box",
+              "X-Response": "modified"
+            },
+            "response_header_delete": ["X-Old-Response"],
+            "body_replace": [
+              {
+                "find": "old-value",
+                "replace": "new-value"
+              }
+            ]
+          }
+        ]
+      },
+      "on_error": "bypass",
+      "upstream_timeout": 30
+    }
+  ],
+  "experimental": {
+    "clash_api": {
+      "external_controller": "127.0.0.1:9097",
+      "secret": "",
+      "default_mode": "rule",
+      "store_selected": true,
+      "cache_file": "cache.db"
+    },
+    "v2ray_api": {
+      "listen": "127.0.0.1:10085",
+      "stats": {
+        "enabled": true,
+        "inbounds": ["tun-in"],
+        "outbounds": ["proxy", "direct"]
+      }
+    },
+    "debug": {
+      "listen": "127.0.0.1:9098",
+      "gc_percent": 20,
+      "max_fds": 10000
+    }
+  }
+}
+```
+
+### 配置要点说明
+
+| 配置项 | 说明 |
+|--------|------|
+| `$schema` | JSON Schema 引用，用于编辑器智能提示和校验 |
+| `dns.final` | 最终 DNS 服务器，未匹配规则的域名使用此服务器解析 |
+| `inbounds[].type=tun` | TUN 虚拟网卡入站，iOS Network Extension 必须使用此类型 |
+| `inbounds[].stack` | TUN 协议栈，可选 `gvisor`（纯 Go 实现）或 `system`（系统栈） |
+| `outbounds[].type=selector` | 手动选择出站组，UI 可切换节点 |
+| `outbounds[].type=urltest` | 自动测速选择最快节点 |
+| `route.final` | 最终出站，未匹配规则的流量使用此出站 |
+| `services[].type=api` | sing-box 原生 API 服务 |
+| `services[].type=mitm` | MITM HTTPS 中间人攻击服务（本项目核心） |
+| `experimental.clash_api` | Clash 兼容 API，供第三方 GUI 客户端使用 |
+| `experimental.v2ray_api` | V2Ray 兼容 API，用于流量统计 |
+| `experimental.debug` | 调试 API，用于 pprof 性能分析 |
+
+> **注意**：以上配置为示例，实际使用时需替换服务器地址、UUID、密码等敏感信息。iOS App Store 版本（非越狱）通常使用更简洁的配置，由 SFI UI 动态生成。
+
+## 3.3 配置加载流程
 
 ```
 SFI UI 编辑配置
@@ -397,7 +645,7 @@ sing-box 内核根据 option.Options 创建各个组件（inbounds/outbounds/rou
 服务启动完成
 ```
 
-## 3.3 MITM 配置注入
+## 3.4 MITM 配置注入
 
 MITM 配置通过 `MITMServiceManager.injectConfiguration(into:)` 方法注入到现有 profile JSON 的 `services[]` 数组中：
 
