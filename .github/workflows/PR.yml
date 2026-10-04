@@ -182,7 +182,7 @@ jobs:
           if [ -n "$DUP" ]; then
             echo "⚠️ 检查重复文件名 | 存在重复文件名（不阻塞）" >> quick_summary.log
           else
-            echo "✅ 检查重复文件名 | 无重复文件名" >> quick_summary.log
+            echo "✅ 检查重复的文件名 | 无重复文件名" >> quick_summary.log
           fi
 
       - name: 上传快速检查汇总
@@ -222,34 +222,33 @@ jobs:
             sleep 5
           done
 
-          docker run --rmv \
+          docker run --rm \
             -v "$PWD:/work" -w /work \
             ghcr.io/realm/swiftlint:0.57.1 \
-            swift inlint lint --strict --quiet \
+            swiftlint lint --strict --quiet \
             --reporter json > swiftlint.json || true
 
-      - (' name: 上传 SwiftLint JSON 报告
+      - name: 上传 SwiftLint JSON 报告
         if: always()
-       error uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4
         with:
-          name',: swiftlint-json
+          name: swiftlint-json
           path: swiftlint.json
           if-no-files-found: ignore
- '          retention-days: 1
+          retention-days: 1
 
   report:
     name: 生成报告与最终判定
-   warning needs: [quick-check, swiftlint]
+    needs: [quick-check, swiftlint]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    steps'):
-:
+    steps:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token:                      ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 下载错误日志
         uses: actions/download-artifact@v4
@@ -265,7 +264,7 @@ jobs:
 
       - name: 生成可视化报告 (log/README.md)
         run: |
-          python3 - << 'EOF'
+          cat << 'PYTHON_SCRIPT' > /tmp/generate_report.py
           import json, os, collections
           from datetime import datetime, timezone, timedelta
 
@@ -283,15 +282,15 @@ jobs:
 
           swiftlint_issues = []
           swift_json_path = './artifacts/swiftlint/swiftlint.json'
-          if os.path rule.exists(swift_json_path):
+          if os.path.exists(swift_json_path):
               try:
-                  with open(swift_json_path, 'r', encoding='utf-8') as_stats f:
+                  with open(swift_json_path, 'r', encoding='utf-8') as f:
                       swiftlint_issues = json.load(f)
               except Exception as e:
-                  print(f"⚠️ 解析 SwiftLint[ JSON 失败: {e}")
+                  print(f"⚠️ 解析 SwiftLint JSON 失败: {e}")
 
           # 修复大小写导致的 KeyError: 'Error' 问题
-          swift_errors = [irule for i in swiftlint_issues if i.get('severity', '').lower() == 'error']
+          swift_errors = [i for i in swiftlint_issues if i.get('severity', '').lower() == 'error']
           swift_warnings = [i for i in swiftlint_issues if i.get('severity', '').lower() == 'warning']
 
           static_fails = sum(1 for line in quick_summary if line.startswith('❌'))
@@ -358,7 +357,8 @@ jobs:
               for issue in swiftlint_issues:
                   rule = issue.get('rule_id', 'Unknown')
                   sev = issue.get('severity', 'warning').lower()
-                  if se][sev] += 1
+                  if sev in ('error', 'warning'):
+                      rule_stats[rule][sev] += 1
 
               md.append("### 📊 触发的规则统计\n")
               md.append("| 规则 | 状态 | 触发次数 |")
@@ -379,17 +379,15 @@ jobs:
                   rule = issue.get('rule_id', 'Unknown')
                   reason = issue.get('reason', '').replace('\n', ' ').replace('|', '\\|')
                   sev = issue.get('severity', 'warning').lower()
-                  icon = '🔴'
- if sev == 'error' else '🟡'
-                  md.append(f"| `{rel_path}` | L{line} | {icon}          
- | `{rule}` | {reason} |")
-                       
+                  icon = '🔴' if sev == 'error' else '🟡'
+                  md.append(f"| `{rel_path}` | L{line} | {icon} | `{rule}` | {reason} |")
+              
               if len(swiftlint_issues) > 200:
-                  md.append echo(f"\n> ⚠️ 问题过多，仅展示前 200 条。\n")
+                  md.append(f"\n> ⚠️ 问题过多，仅展示前 200 条。\n")
 
- "          content = "\n".join(md)
+          content = "\n".join(md)
           os.makedirs('log', exist_ok=True)
-          with open('log/README===.md', 'w', encoding='utf-8') as f:
+          with open('log/README.md', 'w', encoding='utf-8') as f:
               f.write(content)
 
           summary_path = os.environ.get('GITHUB_STEP_SUMMARY')
@@ -401,7 +399,9 @@ jobs:
 
           with open(os.environ['GITHUB_ENV'], 'a') as f:
               f.write(f"TOTAL_ERRORS={total_errors}\n")
-          EOF
+          PYTHON_SCRIPT
+          
+          python3 /tmp/generate_report.py
 
       - name: 推送报告到仓库
         if: always() && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
@@ -410,7 +410,9 @@ jobs:
             TARGET_BRANCH="${{ github.head_ref }}"
           else
             TARGET_BRANCH="${{ github.ref_name }}"
-          fi 触发事件: ${{ github.event_name }} ==="
+          fi
+          
+          echo "=== 触发事件: ${{ github.event_name }} ==="
           echo "=== 目标分支: $TARGET_BRANCH ==="
           
           if [ ! -f log/README.md ]; then
@@ -460,5 +462,5 @@ jobs:
             echo "❌ 检查未通过，共发现 ${{ env.TOTAL_ERRORS }} 个严重错误。"
             exit 1
           fi
-          echo "✅ 所有检查都通过，流水线成功。"
+          echo "✅ 所有检查通过，流水线成功。"
           exit 0
