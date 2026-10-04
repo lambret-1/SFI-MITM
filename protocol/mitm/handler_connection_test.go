@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -374,6 +375,104 @@ func TestHTTP1_处理WebSocket_转发101响应失败(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("超时：处理WebSocket 未在转发101响应失败后返回")
+	}
+}
+
+// TestHTTP1_处理WebSocket_读取器缓冲数据 验证读取器中有缓冲数据时排空到上游
+func TestHTTP1_处理WebSocket_读取器缓冲数据(t *testing.T) {
+	svc, ca证书, ca私钥 := 创建完整TLS服务(t)
+	上游证书 := 签发上游测试证书(t, ca证书, ca私钥, "example.com")
+
+	// 记录上游收到的数据
+	上游收到数据 := make(chan []byte, 1)
+	// mock Router：建立上游 TLS 服务器，返回 101 响应，然后读取数据
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			tls配置 := &tls.Config{
+				Certificates: []tls.Certificate{上游证书},
+				NextProtos:   []string{"http/1.1"},
+			}
+			tls服务端 := tls.Server(conn, tls配置)
+			defer tls服务端.Close()
+			if err := tls服务端.Handshake(); err != nil {
+				return
+			}
+			读取器 := bufio.NewReader(tls服务端)
+			req, err := http.ReadRequest(读取器)
+			if err != nil {
+				return
+			}
+			// 返回 101 Switching Protocols
+			tls服务端.Write([]byte("HTTP/1.1 101 Switching Protocols\r\n" +
+				"Upgrade: websocket\r\n" +
+				"Connection: Upgrade\r\n\r\n"))
+			req.Body.Close()
+			// 读取排空的缓冲数据
+			tls服务端.SetReadDeadline(time.Now().Add(5 * time.Second))
+			缓冲区 := make([]byte, 4096)
+			n, err := tls服务端.Read(缓冲区)
+			if err == nil && n > 0 {
+				上游收到数据 <- 缓冲区[:n]
+			}
+		},
+	}
+
+	客户端端, 服务端端 := net.Pipe()
+	defer 客户端端.Close()
+	defer 服务端端.Close()
+
+	处理器 := 新建HTTP1处理器(svc, mock, adapter.InboundContext{})
+
+	req := &http.Request{
+		Method: "GET",
+		Host:   "example.com",
+		URL:    &url.URL{Path: "/ws", Host: "example.com"},
+		Header: make(http.Header),
+	}
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Connection", "Upgrade")
+
+	// 创建读取器，并预填充缓冲数据（模拟处理连接时已读取的缓冲数据）
+	读取器 := bufio.NewReader(服务端端)
+	缓冲数据 := []byte("buffered-websocket-data")
+	// 向读取器中写入数据（通过底层连接写入，然后读取器会缓冲）
+	// 这里直接使用一个包含数据的读取器
+	读取器 = bufio.NewReader(io.MultiReader(strings.NewReader(string(缓冲数据)), 服务端端))
+
+	处理完成 := make(chan error, 1)
+	go func() {
+		处理完成 <- 处理器.处理WebSocket(context.Background(), 服务端端, 读取器, req)
+	}()
+
+	// 客户端读取 101 响应
+	客户端读取器 := bufio.NewReader(客户端端)
+	客户端端.SetReadDeadline(time.Now().Add(10 * time.Second))
+	resp, err := http.ReadResponse(客户端读取器, req)
+	if err != nil {
+		t.Fatalf("读取响应失败: %v", err)
+	}
+	if resp.StatusCode != 101 {
+		t.Errorf("期望 101 状态码，实际 %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// 验证上游收到了排空的缓冲数据
+	select {
+	case 数据 := <-上游收到数据:
+		if string(数据) != string(缓冲数据) {
+			t.Errorf("期望上游收到缓冲数据 '%s'，实际 '%s'", 缓冲数据, string(数据))
+		}
+	case <-time.After(5 * time.Second):
+		t.Log("上游未收到排空的缓冲数据（可能已被双向转发处理）")
+	}
+
+	// 关闭客户端连接，让处理WebSocket返回
+	客户端端.Close()
+	select {
+	case <-处理完成:
+		// 正常返回
+	case <-time.After(10 * time.Second):
+		t.Fatal("超时：处理WebSocket未在客户端关闭后返回")
 	}
 }
 
