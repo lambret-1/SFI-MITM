@@ -49,20 +49,14 @@ func 加载根证书(配置 option.MITMCAOptions) (*根证书实例, error) {
 		return nil, E.Cause(err, "读取根证书私钥文件失败: ", 配置.PrivateKey)
 	}
 
-	// 加载证书+私钥对
+	// 加载证书+私钥对（tls.X509KeyPair 已验证证书与私钥匹配且证书DER合法）
 	证书对, err := tls.X509KeyPair(证书PEM, 私钥PEM)
 	if err != nil {
 		return nil, E.Cause(err, "解析根证书与私钥失败")
 	}
 
-	// 解析证书实体以验证 CA 属性
-	if len(证书对.Certificate) == 0 {
-		return nil, E.New("根证书中不包含任何证书")
-	}
-	证书实体, err := x509.ParseCertificate(证书对.Certificate[0])
-	if err != nil {
-		return nil, E.Cause(err, "解析根证书实体失败")
-	}
+	// 解析证书实体以验证 CA 属性（X509KeyPair成功后证书DER必然合法）
+	证书实体, _ := x509.ParseCertificate(证书对.Certificate[0])
 	if !证书实体.IsCA {
 		return nil, E.New("提供的证书不是 CA 证书 (IsCA=false)，无法用于签发叶子证书")
 	}

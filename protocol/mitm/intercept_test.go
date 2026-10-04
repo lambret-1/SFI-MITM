@@ -228,5 +228,85 @@ func newCertPool(证书 *x509.Certificate) *x509.CertPool {
 	return 池
 }
 
+// TestIntercept_读取ClientHello失败 验证读取ClientHello失败时关闭连接并调用关闭回调
+func TestIntercept_读取ClientHello失败(t *testing.T) {
+	svc := &Service{
+		ctx:     context.Background(),
+		logger:  获取测试日志器(),
+		options: option.MITMServiceOptions{Enabled: true},
+		叶子缓存:   新证书缓存(默认缓存容量),
+		日志缓冲区: 新日志环形缓冲区(100),
+	}
+
+	客户端端, 服务端端 := net.Pipe()
+	defer 客户端端.Close()
+
+	// 关闭回调被调用标记
+	关闭回调调用 := make(chan error, 1)
+	关闭回调 := func(err error) {
+		关闭回调调用 <- err
+	}
+
+	// 客户端发送非TLS数据后关闭
+	go func() {
+		客户端端.Write([]byte("NOT-TLS-DATA"))
+		time.Sleep(50 * time.Millisecond)
+		客户端端.Close()
+	}()
+
+	// 调用 Intercept（读取ClientHello会失败）
+	go svc.Intercept(context.Background(), 服务端端, adapter.InboundContext{}, nil, 关闭回调)
+
+	select {
+	case err := <-关闭回调调用:
+		if err == nil {
+			t.Error("期望读取ClientHello失败时关闭回调收到错误")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("超时：关闭回调未被调用")
+	}
+}
+
+// TestIntercept_终止TLS失败 验证根证书未加载时终止TLS失败
+func TestIntercept_终止TLS失败(t *testing.T) {
+	svc := &Service{
+		ctx:     context.Background(),
+		logger:  获取测试日志器(),
+		options: option.MITMServiceOptions{Enabled: true},
+		叶子缓存:   新证书缓存(默认缓存容量),
+		匹配器:    新域名匹配器(option.MITMMatchOptions{Domain: []string{"example.com"}}),
+		日志缓冲区: 新日志环形缓冲区(100),
+		// 根证书为 nil，终止TLS会失败
+	}
+
+	客户端端, 服务端端 := net.Pipe()
+	defer 客户端端.Close()
+
+	// 客户端发起 TLS 握手（SNI=example.com，匹配，但根证书未加载）
+	go func() {
+		tls配置 := &tls.Config{
+			ServerName:         "example.com",
+			InsecureSkipVerify: true,
+			NextProtos:         []string{"http/1.1"},
+		}
+		tls客户端 := tls.Client(客户端端, tls配置)
+		tls客户端.Handshake() // 会失败，因为服务端无法完成握手
+	}()
+
+	// 调用 Intercept（域名匹配但终止TLS失败）
+	完成 := make(chan struct{}, 1)
+	go func() {
+		svc.Intercept(context.Background(), 服务端端, adapter.InboundContext{}, nil, nil)
+		完成 <- struct{}{}
+	}()
+
+	select {
+	case <-完成:
+		// 正常返回
+	case <-time.After(10 * time.Second):
+		t.Fatal("超时：Intercept 未在终止TLS失败后返回")
+	}
+}
+
 // 确保 sync 包被引用
 var _ sync.Mutex

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/sagernet/sing-box/adapter"
@@ -95,6 +96,17 @@ func Test解析SNI扩展_直接解析第一个名称(t *testing.T) {
 	copy(数据[5:], 域名)
 	if 解析SNI扩展(数据) != 域名 {
 		t.Errorf("期望直接解析为 %q，实际 %q", 域名, 解析SNI扩展(数据))
+	}
+}
+
+// Test解析SNI扩展_名称长度越界 验证名称长度超出数据范围返回空
+func Test解析SNI扩展_名称长度越界(t *testing.T) {
+	数据 := make([]byte, 8)
+	binary.BigEndian.PutUint16(数据[0:2], 6) // 列表长度 = 6
+	数据[2] = 0x00                             // name_type = host_name
+	binary.BigEndian.PutUint16(数据[3:5], 100) // 名称长度 = 100，越界（数据只有8字节）
+	if 解析SNI扩展(数据) != "" {
+		t.Error("期望名称长度越界返回空")
 	}
 }
 
@@ -201,6 +213,22 @@ func Test发送错误响应_写入失败(t *testing.T) {
 	err := 处理器.发送错误响应(写入器, http.StatusBadRequest, "测试")
 	if err == nil {
 		t.Error("期望写入失败返回错误")
+	}
+}
+
+// Test发送错误响应_大响应写入失败 验证大响应超出缓冲区时resp.Write失败
+func Test发送错误响应_大响应写入失败(t *testing.T) {
+	svc := &Service{}
+	处理器 := 新建HTTP1处理器(svc, nil, adapter.InboundContext{})
+	底层写入器 := &错误写入器{错误: errors.New("模拟底层写入失败")}
+	// 使用小缓冲区（128字节），大响应会触发resp.Write内部刷新失败
+	写入器 := bufio.NewWriterSize(底层写入器, 128)
+
+	// 构造超过缓冲区大小的错误消息
+	大消息 := strings.Repeat("错误消息内容", 100) // 约600字节，超过128字节缓冲区
+	err := 处理器.发送错误响应(写入器, http.StatusBadRequest, 大消息)
+	if err == nil {
+		t.Error("期望大响应写入失败返回错误")
 	}
 }
 

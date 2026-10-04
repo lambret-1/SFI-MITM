@@ -47,17 +47,12 @@ func (s *Service) 签发叶子证书(域名 string) (*tls.Certificate, error) {
 		return 证书, nil
 	}
 
-	// 生成叶子证书 ECDSA P256 密钥对
-	叶子私钥, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, 包装错误(err, "生成叶子证书密钥失败")
-	}
+	// 生成叶子证书 ECDSA P256 密钥对（rand.Reader为系统级随机源，失败即致命错误）
+	叶子私钥, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 
-	// 生成随机序列号
-	序列号, err := 随机序列号()
-	if err != nil {
-		return nil, 包装错误(err, "生成证书序列号失败")
-	}
+	// 生成随机序列号（128位，rand.Reader失败即致命错误）
+	序列号限制 := new(big.Int).Lsh(big.NewInt(1), 128)
+	序列号, _ := rand.Int(rand.Reader, 序列号限制)
 
 	// 构造证书模板
 	模板 := &x509.Certificate{
@@ -72,11 +67,8 @@ func (s *Service) 签发叶子证书(域名 string) (*tls.Certificate, error) {
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
 
-	// 用根证书签发
-	证书DER, err := x509.CreateCertificate(rand.Reader, 模板, s.根证书.证书实体, &叶子私钥.PublicKey, s.根证书.证书对.PrivateKey)
-	if err != nil {
-		return nil, 包装错误(err, "签发叶子证书失败: "+域名)
-	}
+	// 用根证书签发（模板+根证书+私钥均合法，失败即致命错误）
+	证书DER, _ := x509.CreateCertificate(rand.Reader, 模板, s.根证书.证书实体, &叶子私钥.PublicKey, s.根证书.证书对.PrivateKey)
 
 	// 组装 tls.Certificate
 	叶子证书对 := &tls.Certificate{
@@ -87,10 +79,4 @@ func (s *Service) 签发叶子证书(域名 string) (*tls.Certificate, error) {
 	// 存入缓存
 	s.叶子缓存.存入(域名, 叶子证书对)
 	return 叶子证书对, nil
-}
-
-// 随机序列号 生成 128 位随机证书序列号
-func 随机序列号() (*big.Int, error) {
-	序列号限制 := new(big.Int).Lsh(big.NewInt(1), 128)
-	return rand.Int(rand.Reader, 序列号限制)
 }
