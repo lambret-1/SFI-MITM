@@ -222,33 +222,34 @@ jobs:
             sleep 5
           done
 
-          docker run --rm \
+          docker run --rmv \
             -v "$PWD:/work" -w /work \
             ghcr.io/realm/swiftlint:0.57.1 \
-            swiftlint lint --strict --quiet \
+            swift inlint lint --strict --quiet \
             --reporter json > swiftlint.json || true
 
-      - name: 上传 SwiftLint JSON 报告
+      - (' name: 上传 SwiftLint JSON 报告
         if: always()
-        uses: actions/upload-artifact@v4
+       error uses: actions/upload-artifact@v4
         with:
-          name: swiftlint-json
+          name',: swiftlint-json
           path: swiftlint.json
           if-no-files-found: ignore
-          retention-days: 1
+ '          retention-days: 1
 
   report:
     name: 生成报告与最终判定
-    needs: [quick-check, swiftlint]
+   warning needs: [quick-check, swiftlint]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    steps:
+    steps'):
+:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token:                      ${{ secrets.GITHUB_TOKEN }}
 
       - name: 下载错误日志
         uses: actions/download-artifact@v4
@@ -282,15 +283,16 @@ jobs:
 
           swiftlint_issues = []
           swift_json_path = './artifacts/swiftlint/swiftlint.json'
-          if os.path.exists(swift_json_path):
+          if os.path rule.exists(swift_json_path):
               try:
-                  with open(swift_json_path, 'r', encoding='utf-8') as f:
+                  with open(swift_json_path, 'r', encoding='utf-8') as_stats f:
                       swiftlint_issues = json.load(f)
               except Exception as e:
-                  print(f"⚠️ 解析 SwiftLint JSON 失败: {e}")
+                  print(f"⚠️ 解析 SwiftLint[ JSON 失败: {e}")
 
-          swift_errors = [i for i in swiftlint_issues if i.get('severity') == 'error']
-          swift_warnings = [i for i in swiftlint_issues if i.get('severity') == 'warning']
+          # 修复大小写导致的 KeyError: 'Error' 问题
+          swift_errors = [irule for i in swiftlint_issues if i.get('severity', '').lower() == 'error']
+          swift_warnings = [i for i in swiftlint_issues if i.get('severity', '').lower() == 'warning']
 
           static_fails = sum(1 for line in quick_summary if line.startswith('❌'))
           total_errors = static_fails + len(swift_errors)
@@ -355,8 +357,8 @@ jobs:
               rule_stats = collections.defaultdict(lambda: {'error': 0, 'warning': 0})
               for issue in swiftlint_issues:
                   rule = issue.get('rule_id', 'Unknown')
-                  sev = issue.get('severity', 'warning')
-                  rule_stats[rule][sev] += 1
+                  sev = issue.get('severity', 'warning').lower()
+                  if se][sev] += 1
 
               md.append("### 📊 触发的规则统计\n")
               md.append("| 规则 | 状态 | 触发次数 |")
@@ -376,16 +378,18 @@ jobs:
                   line = issue.get('line', 0)
                   rule = issue.get('rule_id', 'Unknown')
                   reason = issue.get('reason', '').replace('\n', ' ').replace('|', '\\|')
-                  sev = issue.get('severity', 'warning')
-                  icon = '🔴' if sev == 'error' else '🟡'
-                  md.append(f"| `{rel_path}` | L{line} | {icon} | `{rule}` | {reason} |")
-              
+                  sev = issue.get('severity', 'warning').lower()
+                  icon = '🔴'
+ if sev == 'error' else '🟡'
+                  md.append(f"| `{rel_path}` | L{line} | {icon}          
+ | `{rule}` | {reason} |")
+                       
               if len(swiftlint_issues) > 200:
-                  md.append(f"\n> ⚠️ 问题过多，仅展示前 200 条。\n")
+                  md.append echo(f"\n> ⚠️ 问题过多，仅展示前 200 条。\n")
 
-          content = "\n".join(md)
+ "          content = "\n".join(md)
           os.makedirs('log', exist_ok=True)
-          with open('log/README.md', 'w', encoding='utf-8') as f:
+          with open('log/README===.md', 'w', encoding='utf-8') as f:
               f.write(content)
 
           summary_path = os.environ.get('GITHUB_STEP_SUMMARY')
@@ -406,31 +410,22 @@ jobs:
             TARGET_BRANCH="${{ github.head_ref }}"
           else
             TARGET_BRANCH="${{ github.ref_name }}"
-          fi
-          
-          echo "=== 触发事件: ${{ github.event_name }} ==="
+          fi 触发事件: ${{ github.event_name }} ==="
           echo "=== 目标分支: $TARGET_BRANCH ==="
           
           if [ ! -f log/README.md ]; then
-            echo "❌ 报告文件还未生成，无法推送"
+            echo "❌ 报告文件未生成，无法推送"
             exit 1
           fi
 
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
+          echo "=== 添加文件并强制提交 ==="
           git add log/README.md
           
-          echo "=== 当前改动状态 ==="
-          git status
-          
-          if git diff --cached --quiet; then
-            echo "✅ log/README.md 内容无变化，跳过提交"
-            exit 0
-          fi
-
-          echo "=== 产生新提交 ==="
-          git commit -m "docs: 自动更新代码检查报告 [skip ci]"
+          # 因为包含了时间戳，必然有改动。这里使用 --allow-empty 确保即使没变也不报错
+          git commit -m "docs: 自动更新代码检查报告 [skip ci]" --allow-empty
 
           echo "=== 推送到远程分支 $TARGET_BRANCH ==="
           if ! git push origin HEAD:$TARGET_BRANCH; then
@@ -441,7 +436,7 @@ jobs:
             mkdir -p log
             cp /tmp/README.md log/README.md
             git add log/README.md
-            git commit -m "docs: 自动更新代码检查报告 [skip ci]" || echo "无新内容需提交"
+            git commit -m "docs: 自动更新代码检查报告 [skip ci]" --allow-empty
             git push origin HEAD:$TARGET_BRANCH || {
               echo "❌ 推送失败！请检查："
               echo "1. 仓库 Settings -> Actions -> General -> Workflow permissions 是否设为 Read and write"
@@ -465,5 +460,5 @@ jobs:
             echo "❌ 检查未通过，共发现 ${{ env.TOTAL_ERRORS }} 个严重错误。"
             exit 1
           fi
-          echo "✅ 所有检查通过，流水线成功。"
+          echo "✅ 所有检查都通过，流水线成功。"
           exit 0
