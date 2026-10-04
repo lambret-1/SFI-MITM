@@ -59,11 +59,20 @@ jobs:
       - name: 运行全量单元测试（包含 MITM）
         run: |
           echo "=== 全量单元测试（排除 experimental 平台限制包）==="
+          # 不使用管道，直接重定向到文件，确保 go test 退出码不被 tee 吞掉
           go test -count=1 -timeout 600s \
-            $(go list ./... | grep -v '/experimental/') 2>&1 | tee /tmp/test-output.txt
+            $(go list ./... | grep -v '/experimental/') > /tmp/test-output.txt 2>&1
+          测试退出码=$?
+          cat /tmp/test-output.txt
           echo ""
           echo "=== 测试结果汇总 ==="
           grep -E "^(ok|FAIL|---)" /tmp/test-output.txt | sort
+          echo ""
+          if [ $测试退出码 -ne 0 ]; then
+            echo "❌ 测试失败，退出码: $测试退出码"
+            exit $测试退出码
+          fi
+          echo "✅ 全量单元测试通过"
         env:
           MITM_TEST_CA_CERT: /tmp/mitm-ca.pem
           MITM_TEST_CA_KEY: /tmp/mitm-ca.key
@@ -94,11 +103,20 @@ jobs:
       - name: 运行 Race Detector 全量测试
         run: |
           echo "=== Race Detector 全量测试（排除 experimental 平台限制包）==="
+          # 不使用管道，直接重定向到文件，确保 go test 退出码不被 tee 吞掉
           go test -race -count=1 -timeout 600s \
-            $(go list ./... | grep -v '/experimental/') 2>&1 | tee /tmp/race-output.txt
+            $(go list ./... | grep -v '/experimental/') > /tmp/race-output.txt 2>&1
+          测试退出码=$?
+          cat /tmp/race-output.txt
           echo ""
           echo "=== Race 测试结果汇总 ==="
           grep -E "^(ok|FAIL)" /tmp/race-output.txt | sort
+          echo ""
+          if [ $测试退出码 -ne 0 ]; then
+            echo "❌ Race 测试失败，退出码: $测试退出码"
+            exit $测试退出码
+          fi
+          echo "✅ Race Detector 全量测试通过"
         env:
           MITM_TEST_CA_CERT: /tmp/mitm-ca.pem
           MITM_TEST_CA_KEY: /tmp/mitm-ca.key
@@ -129,10 +147,17 @@ jobs:
       - name: 运行全量覆盖率测试
         run: |
           echo "=== 收集全量覆盖率（排除 experimental 平台限制包）==="
+          # 不使用管道，直接重定向到文件，确保 go test 退出码不被 tail 吞掉
           go test -coverprofile=full_coverage.out -covermode=atomic \
             -count=1 -timeout 600s \
-            $(go list ./... | grep -v '/experimental/') 2>&1 | tail -20
+            $(go list ./... | grep -v '/experimental/') > /tmp/coverage-output.txt 2>&1
+          测试退出码=$?
+          cat /tmp/coverage-output.txt
           echo ""
+          if [ $测试退出码 -ne 0 ]; then
+            echo "❌ 覆盖率测试失败，退出码: $测试退出码"
+            exit $测试退出码
+          fi
           echo "=== 覆盖率总览（前20行）==="
           go tool cover -func=full_coverage.out | head -20
           echo "..."
@@ -142,6 +167,7 @@ jobs:
           echo "=== 生成 HTML 覆盖率报告 ==="
           go tool cover -html=full_coverage.out -o full_coverage.html
           ls -lh full_coverage.out full_coverage.html
+          echo "✅ 全量覆盖率收集完成"
         env:
           MITM_TEST_CA_CERT: /tmp/mitm-ca.pem
           MITM_TEST_CA_KEY: /tmp/mitm-ca.key
@@ -189,11 +215,20 @@ jobs:
       - name: 运行全量测试（macOS，包含 MITM）
         run: |
           echo "=== macOS 全量测试（排除 experimental 平台限制包）==="
+          # 不使用管道，直接重定向到文件，确保 go test 退出码不被 tee 吞掉
           go test -count=1 -timeout 600s \
-            $(go list ./... | grep -v '/experimental/') 2>&1 | tee /tmp/macos-test-output.txt
+            $(go list ./... | grep -v '/experimental/') > /tmp/macos-test-output.txt 2>&1
+          测试退出码=$?
+          cat /tmp/macos-test-output.txt
           echo ""
           echo "=== 测试结果汇总 ==="
           grep -E "^(ok|FAIL)" /tmp/macos-test-output.txt | sort
+          echo ""
+          if [ $测试退出码 -ne 0 ]; then
+            echo "❌ macOS 测试失败，退出码: $测试退出码"
+            exit $测试退出码
+          fi
+          echo "✅ macOS 全量测试通过"
         env:
           MITM_TEST_CA_CERT: /tmp/mitm-ca.pem
           MITM_TEST_CA_KEY: /tmp/mitm-ca.key

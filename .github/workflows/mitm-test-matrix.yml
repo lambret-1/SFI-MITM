@@ -443,7 +443,17 @@ jobs:
 
       - name: 运行 MITM 模块测试（macOS）
         run: |
-          go test -v -count=1 -timeout 180s ./protocol/mitm/... 2>&1 | tail -30
+          echo "=== macOS MITM 模块测试 ==="
+          # 不使用管道，直接重定向到文件，确保 go test 退出码不被 tail 吞掉
+          go test -v -count=1 -timeout 180s ./protocol/mitm/... > /tmp/mitm-macos-test.txt 2>&1
+          测试退出码=$?
+          cat /tmp/mitm-macos-test.txt
+          echo ""
+          if [ $测试退出码 -ne 0 ]; then
+            echo "❌ macOS MITM 测试失败，退出码: $测试退出码"
+            exit $测试退出码
+          fi
+          echo "✅ macOS MITM 模块测试通过"
         env:
           MITM_TEST_CA_CERT: /tmp/mitm-ca.pem
           MITM_TEST_CA_KEY: /tmp/mitm-ca.key
