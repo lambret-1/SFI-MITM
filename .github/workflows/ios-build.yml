@@ -175,13 +175,16 @@ jobs:
       - name: 验证构建产物
         working-directory: sfi
         run: |
-          APP_PATH=$(find "${{ env.DERIVED_DATA_PATH }}/Build/Products" -name "SFI.app" -type d 2>/dev/null | head -1)
+          APP_PATH=$(find "${{ env.DERIVED_DATA_PATH }}/Build/Products" -name "sing-box.app" -type d 2>/dev/null | head -1)
           if [ -z "$APP_PATH" ]; then
-            echo "❌ 未找到 SFI.app"
-            find "${{ env.DERIVED_DATA_PATH }}/Build/Products" -maxdepth 3 -type d 2>/dev/null | head -20
+            echo "❌ 未找到 sing-box.app"
+            echo "=== Products 目录全部内容 ==="
+            find "${{ env.DERIVED_DATA_PATH }}/Build/Products" -maxdepth 2 2>/dev/null
+            echo "=== build.log 最后 30 行 ==="
+            tail -30 build.log
             exit 1
           fi
-          echo "✅ SFI.app: $APP_PATH"
+          echo "✅ sing-box.app: $APP_PATH"
           echo "Bundle ID: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist" 2>/dev/null || defaults read "$APP_PATH/Info.plist" CFBundleIdentifier 2>/dev/null)"
           echo "Network Extension: $(find "$APP_PATH" -name '*.appex' -type d 2>/dev/null | head -1)"
           test ! -f "$APP_PATH/embedded.mobileprovision" && echo "✅ 无 embedded.mobileprovision（TrollStore 兼容）"
@@ -189,7 +192,7 @@ jobs:
       - name: 打包未签名 IPA（TrollStore 兼容）
         working-directory: sfi
         run: |
-          APP_PATH=$(find "${{ env.DERIVED_DATA_PATH }}/Build/Products" -name "SFI.app" -type d 2>/dev/null | head -1)
+          APP_PATH=$(find "${{ env.DERIVED_DATA_PATH }}/Build/Products" -name "sing-box.app" -type d 2>/dev/null | head -1)
           rm -rf Payload && mkdir -p Payload
           cp -R "$APP_PATH" Payload/
           find Payload -name "_CodeSignature" -type d -exec rm -rf {} + 2>/dev/null || true
