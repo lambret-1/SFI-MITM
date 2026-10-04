@@ -2,11 +2,11 @@
 
 > 由 GitHub Actions 自动生成，包含静态检查与 SwiftLint 结果。
 
-**更新时间 (中国标准时间)**: `2026-10-04 19:52:08`
+**更新时间 (中国标准时间)**: `2026-10-04 20:39:00`
 
 ## 📊 总体统计
 
-- 🔴 **严重错误**: 1
+- 🔴 **严重错误**: 3
 - 🟡 **警告**: 0
 
 ## 🧱 静态检查详情
@@ -29,9 +29,24 @@
 ❌ 缺少关键权限: com.apple.developer.networking.networkextension
 ```
 
-## 🔍 SwiftLint 详细列表
+## 🔍 SwiftLint 检查汇总
+
+| 检查项 | 状态 | 详情 |
+| :--- | :---: | :--- |
+| SwiftLint 代码规范 | ❌ 失败 | 发现 2 个错误, 0 个警告 |
+
+## 📋 SwiftLint 详细列表
+
+### 📊 触发的规则统计
+
+| 规则 | 状态 | 触发次数 |
+| :--- | :---: | :---: |
+| `no_force_unwrap_core` | ❌ 错误 | 1 |
+| `force_unwrapping` | ❌ 错误 | 1 |
+
+### 📋 具体问题位置
 
 | 文件 | 行号 | 级别 | 规则 | 描述 |
 | :--- | :---: | :---: | :--- | :--- |
-| `../../../../../work/SFT/ApplicationDelegate.swift` | L23 | 🟡 | `no_force_unwrap_core` | 核心网络模块请使用可选绑定或 guard 处理 nil |
-| `../../../../../work/SFT/ApplicationDelegate.swift` | L23 | 🟡 | `force_unwrapping` | Force unwrapping should be avoided |
+| `../../../../../work/SFT/ApplicationDelegate.swift` | L23 | 🔴 | `no_force_unwrap_core` | 核心网络模块请使用可选绑定或 guard 处理 nil |
+| `../../../../../work/SFT/ApplicationDelegate.swift` | L23 | 🔴 | `force_unwrapping` | Force unwrapping should be avoided |
