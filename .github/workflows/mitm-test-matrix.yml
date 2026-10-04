@@ -429,15 +429,17 @@ jobs:
           go version
           uname -a
 
-      - name: 生成测试 CA 证书
-        run: |
-          openssl req -x509 -newkey rsa:2048 -keyout /tmp/mitm-ca.key -out /tmp/mitm-ca.pem \
-            -days 3650 -nodes -subj "/CN=MITM macOS Test CA" \
-            -addext "basicConstraints=critical,CA:TRUE" \
-            -addext "keyUsage=critical,keyCertSign"
-
       - name: 编译 sing-box（macOS/arm64）
         run: go build -o singbox ./cmd/sing-box
+
+      - name: 生成测试 CA 证书（使用 singbox 命令，避免 macOS LibreSSL -addext 重复扩展问题）
+        run: |
+          ./singbox generate mitm-ca --name "MITM macOS Test CA" --validity 3650 --output /tmp/mitm-ca-out
+          ls -lh /tmp/mitm-ca-out/
+          # 复制到 /tmp 根目录，保持与 Ubuntu 一致的路径
+          cp /tmp/mitm-ca-out/ca.pem /tmp/mitm-ca.pem
+          cp /tmp/mitm-ca-out/ca.key /tmp/mitm-ca.key
+          echo "✅ CA 证书生成完成"
 
       - name: 运行 MITM 模块测试（macOS）
         run: |
