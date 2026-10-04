@@ -272,6 +272,8 @@ try commandClient?.connect()
 
 ### CommandClient 主要方法
 
+> **注意**：`status`/`connections`/`group`/`logs`/`mode` 等状态查询不是直接的同步方法调用，而是通过 gRPC 流式订阅（`CommandClientHandler` 回调）实时推送数据。以下为实际导出的同步方法。
+
 | 方法 | 签名 | 说明 |
 |------|------|------|
 | `connect` | `() throws -> Void` | 连接到 CommandServer |
@@ -279,20 +281,44 @@ try commandClient?.connect()
 | `disconnect` | `() throws -> Void` | 断开连接 |
 | `serviceClose` | `() throws -> Void` | 关闭服务 |
 | `serviceReload` | `() throws -> Void` | 重载服务 |
-| `status` | `() throws -> StatusMessage` | 查询服务状态 |
-| `connections` | `() throws -> ConnectionIterator` | 查询连接列表 |
-| `group` | `(tag: String) throws -> OutboundGroup` | 查询出站组 |
-| `groupSelect` | `(tag: String, selected: String) throws -> Void` | 切换出站组选中项 |
-| `groupURLTest` | `(tag: String) throws -> Void` | 触发出站组 URL 测试 |
-| `mode` | `() throws -> ModeList` | 查询模式列表 |
-| `modeSet` | `(mode: String) throws -> Void` | 设置模式 |
-| `logs` | `(level: Int32) throws -> LogIterator` | 查询日志 |
-| `networkQuality` | `() throws -> NetworkQualityResult` | 网络质量测试 |
-| `stun` | `(server: String) throws -> STUNResult` | STUN 测试 |
-| `tailscale*` | 多种方法 | Tailscale 管理（peer/status/exit-node/ssh/taildrop/certificate） |
-| `usbip*` | 多种方法 | USB/IP 共享（share/local/status） |
-| `openconnect*` | 多种方法 | OpenConnect 认证 |
-| `openvpn*` | 多种方法 | OpenVPN 认证 |
+| `selectOutbound` | `(groupTag: String, outboundTag: String) throws -> Void` | 切换出站组选中项 |
+| `urlTest` | `(outboundTag: String) throws -> Void` | 触发单个出站 URL 测试 |
+| `setClashMode` | `(newMode: String) throws -> Void` | 设置 Clash 模式（rule/global/direct） |
+| `closeConnection` | `(connId: String) throws -> Void` | 关闭单个连接 |
+| `closeConnections` | `() throws -> Void` | 关闭所有连接 |
+| `clearLogs` | `() throws -> Void` | 清空日志 |
+| `getSystemProxyStatus` | `() throws -> SystemProxyStatus` | 获取系统代理状态（macOS） |
+| `setSystemProxyEnabled` | `(isEnabled: Bool) throws -> Void` | 设置系统代理开关（macOS） |
+| `triggerGoCrash` | `() throws -> Void` | 触发 Go 运行时崩溃（调试用） |
+| `triggerNativeCrash` | `() throws -> Void` | 触发原生崩溃（调试用） |
+| `triggerOOMReport` | `() throws -> Void` | 触发 OOM 内存报告 |
+| `getDeprecatedNotes` | `() throws -> DeprecatedNoteIterator` | 获取弃用配置说明 |
+| `getStartedAt` | `() throws -> Int64` | 获取服务启动时间戳 |
+| `getAPIVersion` | `() throws -> Int32` | 获取 API 版本号 |
+| `setGroupExpand` | `(groupTag: String, isExpand: Bool) throws -> Void` | 设置出站组 UI 展开状态 |
+| `startNetworkQualityTest` | `(configURL: String, outboundTag: String, serial: Bool, maxRuntimeSeconds: Int32, http3: Bool, handler: NetworkQualityTestHandler) throws -> NetworkQualityTestSession` | 启动网络质量测试 |
+| `startSTUNTest` | `(server: String, outboundTag: String, handler: STUNTestHandler) throws -> STUNTestSession` | 启动 STUN NAT 类型测试 |
+| `subscribeTailscaleStatus` | `(handler: TailscaleStatusHandler) throws -> TailscaleStatusSubscription` | 订阅 Tailscale 状态 |
+| `subscribeUSBIPServerStatus` | `(handler: USBIPServerStatusHandler) throws -> USBIPServerStatusSubscription` | 订阅 USB/IP 服务器状态 |
+| `subscribeOpenConnectStatus` | `(handler: OpenConnectStatusHandler) throws -> OpenConnectStatusSubscription` | 订阅 OpenConnect 认证状态 |
+| `submitOpenConnectAuthResponse` | `(endpointTag: String, challengeID: String, response: OpenConnectAuthResponse) throws -> Void` | 提交 OpenConnect 认证响应 |
+| `cancelOpenConnectAuthChallenge` | `(endpointTag: String, challengeID: String) throws -> Void` | 取消 OpenConnect 认证挑战 |
+| `subscribeOpenVPNStatus` | `(handler: OpenVPNStatusHandler) throws -> OpenVPNStatusSubscription` | 订阅 OpenVPN 认证状态 |
+| `submitOpenVPNChallengeResponse` | `(endpointTag: String, challengeID: String, response: OpenVPNChallengeResponse) throws -> Void` | 提交 OpenVPN 挑战响应 |
+| `cancelOpenVPNChallenge` | `(endpointTag: String, challengeID: String) throws -> Void` | 取消 OpenVPN 挑战 |
+
+### CommandClientHandler — 命令客户端回调接口
+
+通过 gRPC 流式订阅接收实时数据，Swift 侧需实现此接口：
+
+| 回调方法 | 说明 |
+|----------|------|
+| `updateStatus(status: StatusMessage)` | 服务状态更新（内存/CPU/连接数/上行下行速率） |
+| `updateConnections(connections: ConnectionIterator)` | 连接列表更新 |
+| `updateGroups(groups: OutboundGroupIterator)` | 出站组状态更新 |
+| `updateClashMode(mode: String)` | Clash 模式更新 |
+| `writeLogs(level: Int32, message: String)` | 实时日志推送 |
+| `updateOutbounds(outbounds: OutboundIterator)` | 出站列表更新 |
 
 ### LibboxSetXPCDialer — 设置 XPC 拨号器
 
@@ -324,23 +350,26 @@ if let formatted = LibboxFormatConfig(configContent) {
 
 ## 3.1 配置 JSON 整体结构
 
-sing-box 配置是一个 JSON 对象，包含以下顶层字段：
+sing-box 配置是一个 JSON 对象，包含以下顶层字段（对应 `option.Options` 结构体）：
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `log` | `object` | 否 | 日志配置 |
-| `dns` | `object` | 否 | DNS 配置 |
-| `inbounds` | `[object]` | 是 | 入站配置列表（tun/socks/http/mixed/redirect/tproxy...） |
-| `outbounds` | `[object]` | 是 | 出站配置列表（direct/block/dns/vmess/vless/trojan/shadowsocks/socks/http/wireguard/hysteria/hysteria2/tuic/shadowtls/anytls/selector/urltest/bridge/tor/ssh...） |
-| `route` | `object` | 否 | 路由配置（规则/规则集/自动检测接口...） |
-| `experimental` | `object` | 否 | 实验性功能配置 |
-| `services` | `[object]` | 否 | 服务配置列表（api/clashapi/v2ray-api/mitm...） |
+| `$schema` | `string` | 否 | JSON Schema 引用（如 `https://sing-box.sagernet.org/schema.json`） |
+| `log` | `object` | 否 | 日志配置（level/output/timestamp...） |
+| `dns` | `object` | 否 | DNS 配置（servers/rules/final...） |
 | `ntp` | `object` | 否 | NTP 时间同步配置 |
-| `endpoint` | `object` | 否 | 端点配置（WireGuard 端点） |
-| `acme` | `object` | 否 | ACME 证书配置 |
 | `certificate` | `[object]` | 否 | 证书配置列表 |
-| `certificate_provider` | `[object]` | 否 | 证书提供者列表 |
-| `debug` | `object` | 否 | 调试配置 |
+| `certificate_providers` | `[object]` | 否 | 证书提供者列表（ACME 是其中一种类型，注意是复数） |
+| `http_clients` | `[object]` | 否 | HTTP 客户端配置列表 |
+| `network_namespaces` | `[object]` | 否 | 网络命名空间配置列表（Linux） |
+| `endpoints` | `[object]` | 否 | 端点配置列表（WireGuard 端点，注意是复数） |
+| `inbounds` | `[object]` | 是 | 入站配置列表（tun/socks/http/mixed/redirect/tproxy/direct...） |
+| `outbounds` | `[object]` | 是 | 出站配置列表（direct/block/dns/vmess/vless/trojan/shadowsocks/socks/http/wireguard/hysteria/hysteria2/tuic/shadowtls/anytls/selector/urltest/bridge/tor/ssh...） |
+| `route` | `object` | 否 | 路由配置（rules/rule_set/auto_detect_interface/final...） |
+| `services` | `[object]` | 否 | 服务配置列表（api/clashapi/v2ray-api/mitm...） |
+| `experimental` | `object` | 否 | 实验性功能配置（clash_api/v2ray_api/debug...） |
+
+> **注意**：`acme` 不是顶层字段，而是 `certificate_providers` 中 `type=acme` 的证书提供者配置。`debug` 配置位于 `experimental` 对象下。
 
 ## 3.2 配置加载流程
 
@@ -463,22 +492,49 @@ sing-box 内核使用 fd 操作 TUN 接口
 读取 IP 包 → 解析 → 路由 → 出站 → 写入响应包
 ```
 
-## 5.2 TunOptions — TUN 选项
+## 5.2 TunOptions — TUN 选项（接口）
 
-| 字段 | 类型 | 说明 |
+> **注意**：`TunOptions` 是 Go 接口（interface），不是结构体。Swift 侧通过实现此接口为 sing-box 内核提供 TUN 配置信息。libbox 内部的 `tunOptions` 结构体实现此接口，从 `option.TunInboundOptions` 读取配置。
+
+### 接口方法清单
+
+| 方法 | 签名 | 说明 |
 |------|------|------|
-| `name` | `String` | 接口名称（如 `utun9`） |
-| `mtu` | `Int32` | MTU（最大传输单元） |
-| `inet4Address` | `StringIterator` | IPv4 地址列表 |
-| `inet6Address` | `StringIterator` | IPv6 地址列表 |
-| `autoRoute` | `Bool` | 是否自动设置路由 |
-| `strictRoute` | `Bool` | 是否严格路由 |
-| `includeInterface` | `StringIterator` | 包含的网络接口 |
-| `excludeInterface` | `StringIterator` | 排除的网络接口 |
-| `includeRoute` | `[String]` | 包含的路由段 |
-| `excludeRoute` | `[String]` | 排除的路由段 |
-| `includeAddress` | `[String]` | 包含的地址段 |
-| `excludeAddress` | `[String]` | 排除的地址段 |
+| `getInet4Address` | `() -> RoutePrefixIterator` | 获取 IPv4 地址列表（含前缀长度） |
+| `getInet6Address` | `() -> RoutePrefixIterator` | 获取 IPv6 地址列表（含前缀长度） |
+| `getDNSMode` | `() -> StringBox?` | 获取 DNS 模式（如 `local`、`remote`） |
+| `getDNSServerAddress` | `() -> (StringIterator, Error?)` | 获取 DNS 服务器地址列表 |
+| `getMTU` | `() -> Int32` | 获取 MTU（最大传输单元） |
+| `getAutoRoute` | `() -> Bool` | 是否自动设置路由 |
+| `getStrictRoute` | `() -> Bool` | 是否严格路由 |
+| `getInet4RouteAddress` | `() -> RoutePrefixIterator` | 获取 IPv4 包含路由地址 |
+| `getInet6RouteAddress` | `() -> RoutePrefixIterator` | 获取 IPv6 包含路由地址 |
+| `getInet4RouteExcludeAddress` | `() -> RoutePrefixIterator` | 获取 IPv4 排除路由地址 |
+| `getInet6RouteExcludeAddress` | `() -> RoutePrefixIterator` | 获取 IPv6 排除路由地址 |
+| `getInet4RouteRange` | `() -> RoutePrefixIterator` | 获取 IPv4 路由范围 |
+| `getInet6RouteRange` | `() -> RoutePrefixIterator` | 获取 IPv6 路由范围 |
+| `getIncludePackage` | `() -> StringIterator` | 获取包含的应用包名（Android） |
+| `getExcludePackage` | `() -> StringIterator` | 获取排除的应用包名（Android） |
+| `isHTTPProxyEnabled` | `() -> Bool` | 是否启用 HTTP 代理 |
+| `getHTTPProxyServer` | `() -> String` | 获取 HTTP 代理服务器地址 |
+| `getHTTPProxyServerPort` | `() -> Int32` | 获取 HTTP 代理服务器端口 |
+| `getHTTPProxyBypassDomain` | `() -> StringIterator` | 获取 HTTP 代理绕过域名列表 |
+| `getHTTPProxyMatchDomain` | `() -> StringIterator` | 获取 HTTP 代理匹配域名列表 |
+
+### RoutePrefix — 路由前缀结构体
+
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `address` | `() -> String` | IP 地址（字符串格式） |
+| `prefix` | `() -> Int32` | 前缀长度 |
+| `mask` | `() -> String` | 子网掩码（字符串格式） |
+
+### RoutePrefixIterator — 路由前缀迭代器
+
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `next` | `() -> RoutePrefix?` | 返回下一个路由前缀，结束返回 nil |
+| `hasNext` | `() -> Bool` | 是否还有下一个 |
 
 ## 5.3 TUN Interceptor 接口（MITM 专项）
 
