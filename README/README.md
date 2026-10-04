@@ -1256,18 +1256,12 @@ SFI 不直接调用 sing-box。
 
 ```
 sing-box core
-
         |
-
         |
-
-libbox
-
+      libbox
         |
-
         |
-
-Swift
+      Swift
 ```
 
 ---
@@ -1277,54 +1271,82 @@ Swift
 目录：
 
 ```
-experimental/libbox
+experimental/libbox/mitm.go
 ```
 
-新增：
+> **注意**：MITM 相关 API 分为两类：
+> - **包级函数**：`GenerateMITMCA`（不需要运行中的服务实例）
+> - **CommandServer 方法**：`GetMITMStatus`/`GetMITMLogs`/`ClearMITMLogs`（需要运行中的服务实例，通过 `commandServer.xxx()` 调用）
 
-```
-mitm.go
-```
-
-例如：
-
-```go
-package libbox
-
-
-func GetMITMStatus()
-MITMStatus
-{
-
-}
-```
-
-返回：
+## 1.1 MITMStatus 结构体
 
 ```go
 type MITMStatus struct {
-
- Enabled bool
-
- CertificateInstalled bool
-
- Connections int
-
+    // Enabled MITM 服务是否已启用
+    Enabled bool
+    // CAInstalled 根证书是否已成功加载
+    CAInstalled bool
+    // ActiveConnections 当前正在进行 MITM 解密的活跃连接数
+    ActiveConnections int32
 }
+```
+
+## 1.2 GetMITMStatus 方法（CommandServer 方法）
+
+```go
+// GetMITMStatus 获取 MITM 服务运行状态
+// 此方法是 CommandServer 的方法，不是包级函数
+// 服务未启动或未配置 MITM 时返回零值（Enabled=false）
+func (s *CommandServer) GetMITMStatus() *MITMStatus
+```
+
+Swift 调用示例：
+
+```swift
+let status = commandServer.getMITMStatus()
+if status.enabled {
+    print("MITM 已启用，活跃连接：\(status.activeConnections)")
+}
+```
+
+## 1.3 MITM 日志 API（CommandServer 方法）
+
+```go
+// MITMLogEntry MITM 日志条目
+type MITMLogEntry struct {
+    Timestamp string  // RFC3339 UTC 格式
+    Level     int32   // 0=Trace, 1=Debug, 2=Info, 3=Warn, 4=Error
+    Message   string
+}
+
+// MITMLogIterator MITM 日志迭代器（Len/HasNext/Next 模式）
+type MITMLogIterator struct { ... }
+
+// GetMITMLogs 获取 MITM 服务日志（返回迭代器）
+func (s *CommandServer) GetMITMLogs() *MITMLogIterator
+
+// ClearMITMLogs 清空 MITM 服务日志
+func (s *CommandServer) ClearMITMLogs()
 ```
 
 ---
 
 # 2. 导出 CA 操作
 
-增加：
+## GenerateMITMCA 包级函数
 
 ```go
-func GenerateMITMCA(
- path string,
-)
-error
+// GenerateMITMCA 生成 MITM 根证书与私钥
+// 使用 ECDSA P-256 曲线生成自签名 CA 根证书
+// 证书有效期 10 年，具备 CA:TRUE 基本约束和 keyCertSign 密钥用途
+//
+// 参数：
+//   - certificatePath: 证书输出文件路径（PEM 格式）
+//   - privateKeyPath: 私钥输出文件路径（PEM 格式，权限 0o600）
+func GenerateMITMCA(certificatePath string, privateKeyPath string) error
 ```
+
+> **注意**：此函数是**包级函数**，不需要运行中的服务实例，可在 SFI UI 进程中直接调用。
 
 用途：
 
@@ -1332,14 +1354,23 @@ SFI UI：
 
 ```
 Settings
-
- ↓
-
-MITM
-
- ↓
-
+    ↓
+   MITM
+    ↓
 Generate CA
+```
+
+Swift 调用示例：
+
+```swift
+let 证书路径 = "\(NSHomeDirectory())/Documents/mitm-ca.pem"
+let 私钥路径 = "\(NSHomeDirectory())/Documents/mitm-ca.key"
+do {
+    try LibboxGenerateMITMCA(证书路径, privateKeyPath: 私钥路径)
+    print("CA 证书生成成功")
+} catch {
+    print("CA 证书生成失败：\(error)")
+}
 ```
 
 ---
@@ -1584,29 +1615,40 @@ Bundle/
 增加：
 
 ```
-JailbreakDaemon
+JailbreakDaemon（通过 deb 包部署的 sing-box 守护进程）
 ```
 
 流程：
 
 ```
 launchd
-
- |
-
-sing-box daemon
-
- |
-
+   |
+sing-box daemon（/var/jb/usr/bin/sing-box）
+   |
 MITM Service
-
 ```
 
-配置：
+配置与文件路径（根less越狱，/var/jb 前缀）：
 
 ```
-/var/mobile/singbox/
+/var/jb/etc/sing-box/
+├── config.json    # sing-box 配置（含 MITM 服务）
+├── ca.pem         # MITM 根证书
+└── ca.key         # MITM 根证书私钥
+
+/var/jb/Library/LaunchDaemons/
+└── com.sb1.mitm.plist   # launchd 守护进程配置
+
+/var/jb/usr/bin/
+└── sing-box              # sing-box 二进制（darwin/arm64）
 ```
+
+deb 包信息：
+- 包名：`com.sb1.mitm`
+- 版本：`1.11.0-1`
+- 架构：`iphoneos-arm64`
+- 产物：`deploy/ios/output/com.sb1.mitm_1.11.0-1_iphoneos-arm64.deb`
+- CI 流水线：`.github/workflows/mitm-ios-deb.yml`（Linux 交叉编译）
 
 ---
 
@@ -1760,80 +1802,116 @@ Xcode build
 
 # 二十三、Makefile 增加
 
-建议：
+sing-box 分支 Makefile 已新增以下 MITM 相关构建目标：
 
-```
-make mitm-ios
-```
+## 23.1 libbox-mitm — 构建 MITM 版本 Libbox.framework
 
-执行：
-
-```
-build sing-box
-
-+
-
-build libbox
-
-+
-
-copy framework
+```bash
+make libbox-mitm
 ```
 
-例如：
+等价于 `make libbox-ios`，仅构建 iOS 真机（arm64）切片的 Libbox.framework，作为 MITM 专项构建目标提供语义化入口。
+
+实际定义：
 
 ```make
-mitm-ios:
-
-	go build ./...
-
-	go run ./cmd/internal/build_libbox \
-	-target apple \
-	-platform ios
-
-	cp -R \
-	Libbox.xcframework \
-	../sing-box-for-apple/Frameworks/
+# libbox-mitm 构建 MITM 版本的 Libbox.framework（iOS 真机专用）
+# 等价于 libbox-ios，作为 MITM 专项构建目标提供语义化入口
+libbox-mitm: libbox-ios
 ```
+
+## 23.2 libbox-apple — 构建全平台 Libbox.xcframework
+
+```bash
+make libbox-apple
+```
+
+构建全平台 Apple 切片（iOS/iOS Simulator/macOS/macOS Catalyst）的 Libbox.xcframework，对应 CI 工作流 `.github/workflows/libbox-build.yml`。
+
+## 23.3 mitm-ios-deb — 构建 iOS 越狱版 .deb 安装包
+
+```bash
+make mitm-ios-deb
+```
+
+Linux 交叉编译 darwin/arm64 构建 sing-box 二进制，打包为越狱版 .deb 安装包。
+
+产物：`deploy/ios/output/com.sb1.mitm_1.11.0-1_iphoneos-arm64.deb`
+
+对应 CI 工作流：`.github/workflows/mitm-ios-deb.yml`
 
 ---
 
 # 二十四、最终目录状态
 
-完成后：
+## 24.1 sing-box 分支（Go 核心代码）
 
 ```
 sing-box/
+├── option/
+│   └── mitm.go                          # MITM 配置选项（6个结构体）
+├── constant/
+│   └── proxy.go                         # TypeMITM = "mitm" 常量
+├── include/
+│   └── mitm.go                          # MITM 服务注册入口
+├── protocol/
+│   ├── mitm/                            # MITM 核心实现（14个源文件 + rewrite/子目录）
+│   │   ├── service.go                   # Service 核心，双重注册
+│   │   ├── interceptor.go               # TUN Interceptor 实现
+│   │   ├── clienthello.go               # TLS ClientHello 解析
+│   │   ├── tls.go                       # TLS 终止与动态证书
+│   │   ├── certificate.go               # 证书缓存管理
+│   │   ├── ca.go                        # 根证书加载与签发
+│   │   ├── cache.go                     # 会话缓存
+│   │   ├── log_buffer.go                # 日志环形缓冲区
+│   │   ├── matcher.go                   # 域名匹配器
+│   │   ├── router.go                    # MITM 内部路由
+│   │   ├── upstream.go                  # 上游连接管理
+│   │   ├── http1.go                     # HTTP/1.1 处理
+│   │   ├── http2.go                     # HTTP/2 处理
+│   │   ├── websocket.go                 # WebSocket 透传
+│   │   └── rewrite/                     # HTTP 重写引擎
+│   │       ├── engine.go
+│   │       ├── matcher.go
+│   │       ├── rule.go
+│   │       └── body.go
+│   └── tun/
+│       └── interceptor.go               # TUN Interceptor 接口定义
+├── experimental/libbox/
+│   └── mitm.go                          # MITM libbox 导出 API
+├── cmd/sing-box/
+│   └── cmd_generate_mitm_ca.go          # sing-box generate mitm-ca 命令
+├── test/mitm/                           # MITM 独立测试目录（9个测试文件）
+├── deploy/ios/                          # iOS 越狱部署文件
+│   ├── build-deb.sh                     # deb 包构建脚本
+│   ├── build-ios.sh                     # iOS 交叉编译脚本
+│   ├── install.sh                       # 越狱设备安装脚本
+│   ├── com.sb1.mitm.plist              # LaunchDaemon 配置
+│   ├── config/config.json               # MITM 完整配置示例
+│   ├── deb/                             # deb 包目录结构
+│   │   └── DEBIAN/                     # 控制脚本（control/preinst/postinst/prerm/postrm）
+│   └── output/                          # 构建产物（.deb 文件）
+└── Makefile                             # 新增 libbox-mitm / mitm-ios-deb 目标
+```
 
-protocol/
+## 24.2 sing-box-for-apple 分支（iOS 客户端 Swift 代码）
 
- └── mitm/
-
-
-experimental/libbox/
-
- └── mitm_api.go
-
-
-
+```
 sing-box-for-apple/
-
-
-SFI/
-
- ├── MITMSettingsView.swift
- ├── MITMConfig.swift
- └── MITMStatus.swift
-
-
-Jailbreak/
-
- └── MITMCAInstaller.swift
-
-
-Frameworks/
-
- └── Libbox.xcframework
+├── MITM/                                # MITM 功能模块（7个 Swift 文件）
+│   ├── MITMConfiguration.swift          # 配置模型（与 Go 侧 option/mitm.go 对齐）
+│   ├── MITMServiceManager.swift         # 服务管理器（状态查询/日志获取/CA生成）
+│   ├── MITMView.swift                   # MITM 主页面
+│   ├── MITMSettingsPresenter.swift      # 设置页面 Presenter
+│   ├── MITMCAView.swift                 # CA 证书管理页面
+│   ├── MITMMatchView.swift              # 域名匹配规则页面
+│   └── MITMRewriteView.swift            # HTTP 重写规则页面
+├── Jailbreak/                           # 越狱模块
+│   └── MITMCAInstaller.swift            # 越狱环境 CA 安装器
+├── Frameworks/
+│   └── Libbox.xcframework               # sing-box 内核框架（含 MITM API）
+└── README/
+    └── README.md                        # 本文档（SFI 接入 sing-box 内核完整指南）
 ```
 
 ---
