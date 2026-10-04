@@ -1,4 +1,4 @@
-name: SFI PR 快速检查
+name: PR 快速检查
 
 on:
   push:
@@ -18,7 +18,6 @@ permissions:
 jobs:
   # ============================================================
   # 任务 1：快速静态检查
-  # 核心改变：所有步骤无论成功还是失败，都会往 quick_summary.log 写入状态
   # ============================================================
   quick-check:
     name: 静态检查
@@ -318,7 +317,6 @@ jobs:
           swift_errors = [i for i in swiftlint_issues if i.get('severity') == 'error']
           swift_warnings = [i for i in swiftlint_issues if i.get('severity') == 'warning']
           
-          # 统计静态检查中的失败数
           static_fails = sum(1 for line in quick_summary if line.startswith('❌'))
           total_errors = static_fails + len(swift_errors)
 
@@ -336,6 +334,7 @@ jobs:
           md.append(f"- 🔴 **严重错误**: {total_errors}")
           md.append(f"- 🟡 **警告**: {len(swift_warnings)}\n")
 
+          # ---------------- 静态检查详情 ----------------
           md.append("## 🧱 静态检查详情\n")
           if not quick_summary:
               md.append("⚠️ 未获取到静态检查汇总信息\n")
@@ -367,10 +366,41 @@ jobs:
                   md.append(e)
               md.append("```\n")
 
-          md.append("## 🔍 SwiftLint 详细列表\n")
-          if not swiftlint_issues:
-              md.append("✅ SwiftLint 未发现问题！\n")
+          # ---------------- SwiftLint 汇总与详细 ----------------
+          md.append("## 🔍 SwiftLint 检查汇总\n")
+          md.append("| 检查项 | 状态 | 详情 |")
+          md.append("| :--- | :---: | :--- |")
+          if len(swift_errors) == 0 and len(swift_warnings) == 0:
+              md.append("| SwiftLint 代码规范 | ✅ 通过 | 未发现任何问题 |\n")
+          elif len(swift_errors) > 0:
+              md.append(f"| SwiftLint 代码规范 | ❌ 失败 | 发现 {len(swift_errors)} 个错误, {len(swift_warnings)} 个警告 |\n")
           else:
+              md.append(f"| SwiftLint 代码规范 | ⚠️ 警告 | 发现 {len(swift_warnings)} 个警告 |\n")
+
+          md.append("## 📋 SwiftLint 详细列表\n")
+          if not swiftlint_issues:
+              md.append("✅ 未触发任何规则，全部通过！\n")
+          else:
+              # 按规则统计触发情况
+              rule_stats = collections.defaultdict(lambda: {'error': 0, 'warning': 0})
+              for issue in swiftlint_issues:
+                  rule = issue.get('rule_id', 'Unknown')
+                  sev = issue.get('severity', 'warning')
+                  rule_stats[rule][sev] += 1
+
+              md.append("### 📊 触发的规则统计\n")
+              md.append("| 规则 | 状态 | 触发次数 |")
+              md.append("| :--- | :---: | :---: |")
+              for rule, stats in sorted(rule_stats.items(), key=lambda x: (x[1]['error'], x[1]['warning']), reverse=True):
+                  if stats['error'] > 0:
+                      status = '❌ 错误'
+                  else:
+                      status = '⚠️ 警告'
+                  total = stats['error'] + stats['warning']
+                  md.append(f"| `{rule}` | {status} | {total} |")
+              md.append("")
+
+              md.append("### 📋 具体问题位置\n")
               md.append("| 文件 | 行号 | 级别 | 规则 | 描述 |")
               md.append("| :--- | :---: | :---: | :--- | :--- |")
               for issue in swiftlint_issues[:200]:
