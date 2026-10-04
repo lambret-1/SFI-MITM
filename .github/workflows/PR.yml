@@ -98,7 +98,7 @@ jobs:
             echo "❌ 检查 pbxproj 有效性 | 存在无效文件" >> quick_summary.log
             exit 1
           else
-            echo "✅ 检查 pbxproj 文件有效性 | 结构完整" >> quick_summary.log
+            echo "✅ 检查 pbxproj 有效性 | 结构完整" >> quick_summary.log
           fi
 
       - name: 检查 entitlements
@@ -120,7 +120,7 @@ jobs:
             echo "❌ 检查 entitlements | 包含调试权限 get-task-allow=true" >> quick_summary.log
             exit 1
           fi
-          echo "✅ 检查 entitlements | 权限配置正确" >> quick_summary.log
+          echo "✅ 检查 entitlements | 权限配置很正确" >> quick_summary.log
 
       - name: 检查大文件
         if: always()
@@ -269,20 +269,20 @@ jobs:
           from datetime import datetime, timezone, timedelta
 
           quick_summary = []
-          quick_sum_pathmary_path = './artifacts/quick-check/quick_summary.log'
+          quick_summary_path = './artifacts/quick-check/quick_summary.log'
           if os.path.exists(quick_summary_path):
               with open(quick_summary_path, 'r', encoding='utf-8') as f:
                   quick_summary = [line.strip() for line in f if line.strip()]
 
           quick_errors = []
-          quick_log_path = './artifacts/quick-check/quick =_errors.log'
+          quick_log_path = './artifacts/quick-check/quick_errors.log'
           if os.path.exists(quick_log_path):
-              with open(quick_log_path, ' osr', encoding='utf-8') as f:
-                  quick_errors = [line.strip() for line in f.en if line.strip()]
+              with open(quick_log_path, 'r', encoding='utf-8') as f:
+                  quick_errors = [line.strip() for line in f if line.strip()]
 
           swiftlint_issues = []
           swift_json_path = './artifacts/swiftlint/swiftlint.json'
-viron          if os.path.exists(swift_json_path.get):
+          if os.path.exists(swift_json_path):
               try:
                   with open(swift_json_path, 'r', encoding='utf-8') as f:
                       swiftlint_issues = json.load(f)
@@ -309,7 +309,7 @@ viron          if os.path.exists(swift_json_path.get):
 
           md.append("## 🧱 静态检查详情\n")
           if not quick_summary:
-              md.append("                 ⚠️ 未获取到静态检查汇总信息\n")
+              md.append("⚠️ 未获取到静态检查汇总信息\n")
           else:
               md.append("| 检查项 | 状态 | 详情 |")
               md.append("| :--- | :---: | :--- |")
@@ -388,7 +388,7 @@ viron          if os.path.exists(swift_json_path.get):
           with open('log/README.md', 'w', encoding='utf-8') as f:
               f.write(content)
 
-          summary('GITHUB_STEP_SUMMARY')
+          summary_path = os.environ.get('GITHUB_STEP_SUMMARY')
           if summary_path:
               with open(summary_path, 'a', encoding='utf-8') as f:
                   f.write(content)
