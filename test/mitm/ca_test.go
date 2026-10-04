@@ -1,10 +1,16 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
+	"math/big"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/sagernet/sing-box/option"
 )
@@ -88,13 +94,49 @@ func TestCA_证书是有效的CA(t *testing.T) {
 }
 
 // 生成非CA证书 生成非 CA 证书用于负向测试
+// 使用 Go 原生 crypto/x509 生成，避免依赖外部 openssl 命令
+// （Windows 上临时路径含中文字符时 openssl 无法打开文件）
 func 生成非CA证书(t *testing.T, 证书路径 string, 私钥路径 string) {
 	t.Helper()
-	// 使用 openssl 生成非 CA 证书
-	执行命令(t, "openssl", "req", "-x509", "-newkey", "rsa:2048",
-		"-keyout", 私钥路径, "-out", 证书路径,
-		"-days", "365", "-nodes",
-		"-subj", "/CN=Not a CA",
-		"-addext", "basicConstraints=critical,CA:FALSE",
-		"-addext", "keyUsage=critical,digitalSignature")
+	私钥, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("生成 ECDSA 私钥失败: %v", err)
+	}
+	序列号, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		t.Fatalf("生成序列号失败: %v", err)
+	}
+	模板 := x509.Certificate{
+		SerialNumber:          序列号,
+		Subject:               pkix.Name{CommonName: "Not a CA", Organization: []string{"Test"}},
+		NotBefore:             time.Now().Add(-1 * time.Hour),
+		NotAfter:              time.Now().AddDate(1, 0, 0),
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+		IsCA:                  false,
+	}
+	证书DER, err := x509.CreateCertificate(rand.Reader, &模板, &模板, &私钥.PublicKey, 私钥)
+	if err != nil {
+		t.Fatalf("生成非 CA 证书失败: %v", err)
+	}
+	证书文件, err := os.Create(证书路径)
+	if err != nil {
+		t.Fatalf("创建证书文件失败: %v", err)
+	}
+	defer 证书文件.Close()
+	if err := pem.Encode(证书文件, &pem.Block{Type: "CERTIFICATE", Bytes: 证书DER}); err != nil {
+		t.Fatalf("写入证书 PEM 失败: %v", err)
+	}
+	私钥DER, err := x509.MarshalECPrivateKey(私钥)
+	if err != nil {
+		t.Fatalf("编码私钥失败: %v", err)
+	}
+	私钥文件, err := os.OpenFile(私钥路径, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		t.Fatalf("创建私钥文件失败: %v", err)
+	}
+	defer 私钥文件.Close()
+	if err := pem.Encode(私钥文件, &pem.Block{Type: "EC PRIVATE KEY", Bytes: 私钥DER}); err != nil {
+		t.Fatalf("写入私钥 PEM 失败: %v", err)
+	}
 }
