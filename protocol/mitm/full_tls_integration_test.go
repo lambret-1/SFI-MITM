@@ -288,6 +288,57 @@ func Test处理请求_写入客户端响应失败(t *testing.T) {
 	}
 }
 
+// Test处理请求_刷新客户端缓冲区失败 验证刷新客户端缓冲区失败时返回错误
+func Test处理请求_刷新客户端缓冲区失败(t *testing.T) {
+	svc, ca证书, ca私钥 := 创建完整TLS服务(t)
+	上游证书 := 签发上游测试证书(t, ca证书, ca私钥, "example.com")
+
+	// mock Router：建立上游 TLS 服务器，返回 HTTP 响应
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			tls配置 := &tls.Config{
+				Certificates: []tls.Certificate{上游证书},
+				NextProtos:   []string{"http/1.1"},
+			}
+			tls服务端 := tls.Server(conn, tls配置)
+			defer tls服务端.Close()
+			if err := tls服务端.Handshake(); err != nil {
+				return
+			}
+			读取器 := bufio.NewReader(tls服务端)
+			req, err := http.ReadRequest(读取器)
+			if err != nil {
+				return
+			}
+			响应体 := "Hello from upstream"
+			tls服务端.Write([]byte("HTTP/1.1 200 OK\r\n" +
+				"Content-Type: text/plain\r\n" +
+				"Content-Length: " + itoa(len(响应体)) + "\r\n" +
+				"Connection: close\r\n\r\n" + 响应体))
+			req.Body.Close()
+		},
+	}
+
+	处理器 := 新建HTTP1处理器(svc, mock, adapter.InboundContext{})
+
+	req := &http.Request{
+		Method: "GET",
+		Host:   "example.com",
+		URL:    &url.URL{Path: "/", Host: "example.com"},
+		Header: make(http.Header),
+	}
+
+	// 使用错误写入器 + 大缓冲区，确保 resp.Write 成功（写入缓冲区），Flush 失败
+	底层写入器 := &错误写入器{错误: errors.New("模拟客户端刷新失败")}
+	写入器 := bufio.NewWriterSize(底层写入器, 4096) // 大缓冲区，resp.Write 成功
+	读取器 := bufio.NewReader(strings.NewReader(""))
+
+	err := 处理器.处理请求(context.Background(), req, 读取器, 写入器)
+	if err == nil {
+		t.Error("期望刷新客户端缓冲区失败返回错误")
+	}
+}
+
 // itoa 简单的整数转字符串（避免引入 strconv）
 func itoa(n int) string {
 	if n == 0 {
