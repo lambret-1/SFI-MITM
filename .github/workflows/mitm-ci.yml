@@ -8,6 +8,7 @@ on:
       # 基础冒烟门禁：排除非核心代码路径，其余修改均触发
       - 'experimental/**'
       - 'deploy/**'
+      - '.github/workflows/test.yml'
       - '.github/workflows/mitm-test-matrix.yml'
       - '.github/workflows/full-test-matrix.yml'
       - '.github/workflows/libbox-build.yml'
