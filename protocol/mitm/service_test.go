@@ -151,6 +151,44 @@ func TestNewService_加载合法CA(t *testing.T) {
 	}
 }
 
+// TestNewService_重写引擎启用 验证重写引擎启用时记录日志
+func TestNewService_重写引擎启用(t *testing.T) {
+	证书PEM, 私钥PEM := 生成测试CA(t)
+	证书路径 := 写入临时文件(t, 证书PEM)
+	私钥路径 := 写入临时文件(t, 私钥PEM)
+
+	ctx := 构造上下文()
+	svc, err := NewService(ctx, 获取测试日志器(), "mitm", option.MITMServiceOptions{
+		Enabled: true,
+		CA: option.MITMCAOptions{
+			Certificate: 证书路径,
+			PrivateKey:  私钥路径,
+		},
+		Match: option.MITMMatchOptions{
+			DomainSuffix: []string{"example.com"},
+		},
+		Rewrite: option.MITMRewriteOptions{
+			Enabled: true,
+			Rules: []option.MITMRewriteRule{
+				{
+					DomainSuffix:  []string{"example.com"},
+					RequestHeader: map[string]string{"X-Test": "rewritten"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("加载合法 CA 应成功: %v", err)
+	}
+	实际服务 := svc.(*Service)
+	if 实际服务.重写引擎 == nil {
+		t.Fatal("重写引擎不应为 nil")
+	}
+	if !实际服务.重写引擎.IsEnabled() {
+		t.Error("重写引擎应已启用")
+	}
+}
+
 // TestNewService_非CA证书被拒绝 验证非 CA 证书会被拒绝
 func TestNewService_非CA证书被拒绝(t *testing.T) {
 	私钥, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
