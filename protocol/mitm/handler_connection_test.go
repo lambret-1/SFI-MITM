@@ -209,6 +209,54 @@ func newBufioReader(r io.Reader) *bufio.Reader {
 	return bufio.NewReader(r)
 }
 
+// TestHTTP1_处理连接_读取无效HTTP请求 验证读取无效HTTP请求时返回错误
+func TestHTTP1_处理连接_读取无效HTTP请求(t *testing.T) {
+	svc := &Service{
+		ctx:     context.Background(),
+		logger:  获取测试日志器(),
+		options: option.MITMServiceOptions{Enabled: true},
+		叶子缓存:   新证书缓存(默认缓存容量),
+		日志缓冲区: 新日志环形缓冲区(100),
+	}
+
+	// 使用真实TCP连接（处理连接需要SetReadDeadline，net.Pipe不支持）
+	监听器, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("创建监听器失败: %v", err)
+	}
+	defer 监听器.Close()
+
+	处理器 := 新建HTTP1处理器(svc, nil, adapter.InboundContext{})
+
+	错误 := make(chan error, 1)
+	go func() {
+		客户端连接, err := 监听器.Accept()
+		if err != nil {
+			return
+		}
+		defer 客户端连接.Close()
+		错误 <- 处理器.处理连接(context.Background(), 客户端连接)
+	}()
+
+	客户端连接, err := net.Dial("tcp", 监听器.Addr().String())
+	if err != nil {
+		t.Fatalf("连接失败: %v", err)
+	}
+	defer 客户端连接.Close()
+
+	// 发送无效的 HTTP 数据（不是以 HTTP 方法开头）
+	客户端连接.Write([]byte("INVALID HTTP DATA\r\n\r\n"))
+
+	select {
+	case err := <-错误:
+		if err == nil {
+			t.Error("期望读取无效HTTP请求返回错误")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("超时：处理连接未在读取无效请求后返回")
+	}
+}
+
 // 确保引用
 var _ = tls.VersionTLS12
 var _ http2.Server

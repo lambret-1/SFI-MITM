@@ -308,5 +308,92 @@ func TestIntercept_终止TLS失败(t *testing.T) {
 	}
 }
 
+// TestIntercept_HTTP2处理 验证ALPN协商为h2时使用HTTP/2处理器
+func TestIntercept_HTTP2处理(t *testing.T) {
+	证书PEM, 私钥PEM := 生成测试CA(t)
+	ca证书, ca私钥 := 解析测试CA(t, 证书PEM, 私钥PEM)
+
+	svc := &Service{
+		ctx:     context.Background(),
+		logger:  获取测试日志器(),
+		options: option.MITMServiceOptions{Enabled: true, UpstreamTimeout: 3},
+		根证书: &根证书实例{
+			证书对: tls.Certificate{
+				Certificate: [][]byte{ca证书.Raw},
+				PrivateKey:  ca私钥,
+			},
+			证书实体: ca证书,
+		},
+		叶子缓存:   新证书缓存(默认缓存容量),
+		匹配器:    新域名匹配器(option.MITMMatchOptions{Domain: []string{"example.com"}}),
+		日志缓冲区: 新日志环形缓冲区(100),
+		上游根证书池: 创建测试证书池(t, ca证书),
+	}
+
+	// 使用真实TCP连接（处理连接需要SetReadDeadline）
+	监听器, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("创建监听器失败: %v", err)
+	}
+	defer 监听器.Close()
+
+	// mock Router：建立上游 TLS 服务器，支持 h2
+	上游证书 := tls.Certificate{
+		Certificate: [][]byte{ca证书.Raw},
+		PrivateKey:  ca私钥,
+	}
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			tls配置 := &tls.Config{
+				Certificates: []tls.Certificate{上游证书},
+				NextProtos:   []string{"h2", "http/1.1"},
+			}
+			tls服务端 := tls.Server(conn, tls配置)
+			defer tls服务端.Close()
+			if err := tls服务端.Handshake(); err != nil {
+				return
+			}
+			// 读取数据后关闭（HTTP/2握手可能失败，但能覆盖HTTP/2处理分支）
+			缓冲区 := make([]byte, 4096)
+			tls服务端.SetReadDeadline(time.Now().Add(2 * time.Second))
+			tls服务端.Read(缓冲区)
+		},
+	}
+
+	// 在 goroutine 中接受连接并调用 Intercept
+	完成 := make(chan struct{}, 1)
+	go func() {
+		客户端连接, err := 监听器.Accept()
+		if err != nil {
+			return
+		}
+		defer 客户端连接.Close()
+		svc.Intercept(context.Background(), 客户端连接, adapter.InboundContext{}, mock, nil)
+		完成 <- struct{}{}
+	}()
+
+	// 客户端使用 TLS 连接，协商 ALPN=h2
+	客户端配置 := &tls.Config{
+		ServerName: "example.com",
+		RootCAs:    创建测试证书池(t, ca证书),
+		NextProtos: []string{"h2"},
+	}
+	客户端连接, err := tls.Dial("tcp", 监听器.Addr().String(), 客户端配置)
+	if err != nil {
+		t.Fatalf("TLS 连接失败: %v", err)
+	}
+	defer 客户端连接.Close()
+
+	// 发送 HTTP/2 连接前言（可能导致处理连接返回错误，但能覆盖HTTP/2处理分支）
+	客户端连接.Write([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"))
+
+	select {
+	case <-完成:
+		// 正常返回（可能因HTTP/2处理错误而返回）
+	case <-time.After(10 * time.Second):
+		t.Fatal("超时：Intercept 未在HTTP/2处理后返回")
+	}
+}
+
 // 确保 sync 包被引用
 var _ sync.Mutex

@@ -196,6 +196,46 @@ func Test处理请求_上游响应读取失败(t *testing.T) {
 	}
 }
 
+// Test处理请求_写入上游请求失败 验证上游连接关闭时写入请求失败
+func Test处理请求_写入上游请求失败(t *testing.T) {
+	svc, ca证书, ca私钥 := 创建完整TLS服务(t)
+	上游证书 := 签发上游测试证书(t, ca证书, ca私钥, "example.com")
+
+	// mock Router：建立上游 TLS 服务器，握手成功后立即关闭
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			tls配置 := &tls.Config{
+				Certificates: []tls.Certificate{上游证书},
+				NextProtos:   []string{"http/1.1"},
+			}
+			tls服务端 := tls.Server(conn, tls配置)
+			if err := tls服务端.Handshake(); err != nil {
+				return
+			}
+			// 握手成功后立即关闭，不读取请求
+			tls服务端.Close()
+		},
+	}
+
+	处理器 := 新建HTTP1处理器(svc, mock, adapter.InboundContext{})
+
+	req := &http.Request{
+		Method: "GET",
+		Host:   "example.com",
+		URL:    &url.URL{Path: "/", Host: "example.com"},
+		Header: make(http.Header),
+	}
+
+	写入缓冲区 := &bytes.Buffer{}
+	写入器 := bufio.NewWriter(写入缓冲区)
+	读取器 := bufio.NewReader(strings.NewReader(""))
+
+	err := 处理器.处理请求(context.Background(), req, 读取器, 写入器)
+	if err == nil {
+		t.Error("期望写入上游请求失败返回错误")
+	}
+}
+
 // itoa 简单的整数转字符串（避免引入 strconv）
 func itoa(n int) string {
 	if n == 0 {
@@ -421,6 +461,120 @@ func TestServeHTTP_完整HTTP2转发(t *testing.T) {
 	}
 	if !strings.Contains(响应记录器.Body.String(), "HTTP/2 upstream: /h2test") {
 		t.Errorf("期望响应包含上游响应体，实际: %s", 响应记录器.Body.String())
+	}
+}
+
+// ========== 处理WebSocket 完整流程测试（稳定版） ==========
+
+// Test处理WebSocket_完整转发_稳定版 使用测试CA签发的上游TLS证书验证WebSocket完整流程
+func Test处理WebSocket_完整转发_稳定版(t *testing.T) {
+	svc, ca证书, ca私钥 := 创建完整TLS服务(t)
+	上游证书 := 签发上游测试证书(t, ca证书, ca私钥, "example.com")
+
+	// mock Router：在net.Pipe的上游服务端上做TLS服务端握手，处理WebSocket升级并回显
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			tls配置 := &tls.Config{
+				Certificates: []tls.Certificate{上游证书},
+				NextProtos:   []string{"http/1.1"},
+			}
+			tls服务端 := tls.Server(conn, tls配置)
+			if err := tls服务端.Handshake(); err != nil {
+				conn.Close()
+				return
+			}
+			defer tls服务端.Close()
+			// 读取 WebSocket 升级请求
+			读取器 := bufio.NewReader(tls服务端)
+			_, err := http.ReadRequest(读取器)
+			if err != nil {
+				return
+			}
+			// 发送 101 Switching Protocols 响应
+			tls服务端.Write([]byte("HTTP/1.1 101 Switching Protocols\r\n" +
+				"Upgrade: websocket\r\n" +
+				"Connection: Upgrade\r\n\r\n"))
+			// WebSocket 双向回显（设置读取超时避免永久阻塞）
+			tls服务端.SetReadDeadline(time.Now().Add(5 * time.Second))
+			缓冲区 := make([]byte, 4096)
+			for {
+				n, err := tls服务端.Read(缓冲区)
+				if err != nil {
+					return
+				}
+				tls服务端.Write(缓冲区[:n])
+			}
+		},
+	}
+
+	// 创建真实的 TCP 监听器作为 MITM 服务端
+	监听器, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("创建监听器失败: %v", err)
+	}
+	defer 监听器.Close()
+
+	处理器 := 新建HTTP1处理器(svc, mock, adapter.InboundContext{})
+
+	// 在 goroutine 中接受连接并处理 WebSocket
+	处理完成 := make(chan error, 1)
+	go func() {
+		客户端连接, err := 监听器.Accept()
+		if err != nil {
+			处理完成 <- err
+			return
+		}
+		defer 客户端连接.Close()
+		req := &http.Request{
+			Method: "GET",
+			Host:   "example.com",
+			URL:    &url.URL{Path: "/ws", Host: "example.com"},
+			Header: make(http.Header),
+		}
+		req.Header.Set("Upgrade", "websocket")
+		req.Header.Set("Connection", "Upgrade")
+		处理完成 <- 处理器.处理WebSocket(context.Background(), 客户端连接, bufio.NewReader(客户端连接), req)
+	}()
+
+	// 客户端连接到 MITM 服务端
+	客户端连接, err := net.Dial("tcp", 监听器.Addr().String())
+	if err != nil {
+		t.Fatalf("连接失败: %v", err)
+	}
+	defer 客户端连接.Close()
+
+	// 读取 101 响应（使用bufio.Reader确保读取完整响应头）
+	客户端读取器 := bufio.NewReader(客户端连接)
+	客户端连接.SetReadDeadline(time.Now().Add(10 * time.Second))
+	resp, err := http.ReadResponse(客户端读取器, nil)
+	if err != nil {
+		t.Fatalf("读取响应失败: %v", err)
+	}
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		t.Errorf("期望 101 状态码，实际 %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// 发送 WebSocket 数据，验证回显
+	测试数据 := []byte("test-ws-stable")
+	客户端连接.Write(测试数据)
+
+	响应缓冲区 := make([]byte, 4096)
+	n, err := 客户端读取器.Read(响应缓冲区)
+	if err != nil {
+		t.Fatalf("读取回显失败: %v", err)
+	}
+	if string(响应缓冲区[:n]) != string(测试数据) {
+		t.Errorf("期望回显 '%s'，实际 '%s'", 测试数据, string(响应缓冲区[:n]))
+	}
+
+	// 关闭客户端连接，让处理WebSocket返回
+	客户端连接.Close()
+	select {
+	case <-处理完成:
+		// 正常返回
+	case <-time.After(10 * time.Second):
+		t.Fatal("超时：处理WebSocket未在客户端关闭后返回")
 	}
 }
 
