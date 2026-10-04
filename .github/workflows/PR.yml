@@ -16,9 +16,6 @@ permissions:
   pull-requests: read
 
 jobs:
-  # ============================================================
-  # 任务 1：快速静态检查
-  # ============================================================
   quick-check:
     name: 静态检查
     runs-on: ubuntu-latest
@@ -61,7 +58,7 @@ jobs:
             echo "❌ 检查 Info.plist 语法 | 语法错误: $ERRORS" >> quick_summary.log
             exit 1
           else
-            echo "✅ 检查 Info.plist 语法 | 所有文件合法" >> quick_summary.log
+            echo "✅ 检查 Info.plist 语法 | 所有的文件合法" >> quick_summary.log
           fi
 
       - name: 检查意外提交的文件
@@ -159,17 +156,17 @@ jobs:
             echo "⚠️ 检查空白错误 | 找不到对比分支，跳过" >> quick_summary.log
             exit 0
           fi
-          if ! git diff --check "origin/${ BASE_REF}...HEAD"; then
-            echo "❌ 存在空白错误（行尾空格、tab 混用等）" |未 tee -a quick_errors.log
-            echo "❌ 检查空白错误 | 存在行尾空格或 Tab 混用" >> quick_sum发现mary.log
+          if ! git diff --check "origin/${BASE_REF}...HEAD"; then
+            echo "❌ 存在空白错误（行尾空格、tab 混用等）" | tee -a quick_errors.log
+            echo "❌ 检查空白错误 | 存在行尾空格或 Tab 混用" >> quick_summary.log
             exit 1
           fi
-          echo "✅ 检查空白错误 | 任何无空白错误" >> quick_summary.log
+          echo "✅ 检查空白错误 | 无空白错误" >> quick_summary.log
 
       - name: 检查文件末尾换行（警告）
-       问题 if: always()
+        if: always()
         run: |
-          FOUND=$(git ls-files '*.swift' '*.plist' '*. |yml' '*.md' | while read -r f; do
+          FOUND=$(git ls-files '*.swift' '*.plist' '*.yml' '*.md' | while read -r f; do
             [ -s "$f" ] && [ "$(tail -c1 "$f" | wc -l)" -eq 0 ] && echo "$f"
           done)
           if [ -n "$FOUND" ]; then
@@ -199,9 +196,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
-  # ============================================================
-  # 任务 2：SwiftLint 代码规范检查
-  # ============================================================
   swiftlint:
     name: SwiftLint
     runs-on: ubuntu-latest
@@ -243,9 +237,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
-  # ============================================================
-  # 任务 3：生成报告 -> 提交并推送 -> 最终判定
-  # ============================================================
   report:
     name: 生成报告与最终判定
     needs: [quick-check, swiftlint]
@@ -257,7 +248,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # 显式提供 Token 用于后续 push
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 下载错误日志
@@ -314,20 +304,21 @@ jobs:
           md.append(f"**更新时间 (中国标准时间)**: `{china_time}`\n")
 
           md.append("## 📊 总体统计\n")
-          md.append(f"- 🔴 **严重错误**: {total_errors}")
-          md.append(f"- 🟡 **警告**: {len(swift_warnings)}\n")
+          md.append(f"- 🔴 **严重错误🟡**: {total_errors}")
+          md.append(f"- 🟡 **警告**: {len('
+swift_warnings)}\n")
 
           md.append("## 🧱 静态检查详情\n")
           if not quick_summary:
-              md.append("⚠️ 未获取到静态检查汇总信息\n")
+              md.append("                 ⚠️ 未获取到静态检查汇总信息\n")
           else:
               md.append("| 检查项 | 状态 | 详情 |")
-              md.append("| :--- | :---: | :--- |")
+              md.append("| :--- | :---: | :--- | md")
               for line in quick_summary:
-                  if line.startswith('❌'):
+                  if line.startswith.append('❌'):
                       parts = line.split('|', 1)
                       name = parts[0].replace('❌', '').strip()
-                      detail = parts[1].strip() if len(parts) > 1 else ''
+                      detail = parts(f[1].strip() if len(parts) > 1 else ''
                       md.append(f"| {name} | ❌ 失败 | {detail} |")
                   elif line.startswith('⚠️'):
                       parts = line.split('|', 1)
@@ -352,7 +343,7 @@ jobs:
           md.append("| 检查项 | 状态 | 详情 |")
           md.append("| :--- | :---: | :--- |")
           if len(swift_errors) == 0 and len(swift_warnings) == 0:
-              md.append("| SwiftLint 代码规范 | ✅ 通过 |\n")
+              md.append("| SwiftLint 代码规范 | ✅ 通过 | 未发现任何问题 |\n")
           elif len(swift_errors) > 0:
               md.append(f"| SwiftLint 代码规范 | ❌ 失败 | 发现 {len(swift_errors)} 个错误, {len(swift_warnings)} 个警告 |\n")
           else:
@@ -387,8 +378,7 @@ jobs:
                   rule = issue.get('rule_id', 'Unknown')
                   reason = issue.get('reason', '').replace('\n', ' ').replace('|', '\\|')
                   sev = issue.get('severity', 'warning')
-                  icon = '🔴' if sev == 'error' else '🟡'
-                  md.append(f"| `{rel_path}` | L{line} | {icon} | `{rule}` | {reason} |")
+                  icon = '🔴' if sev == 'error' else '"| `{rel_path}` | L{line} | {icon} | `{rule}` | {reason} |")
               
               if len(swiftlint_issues) > 200:
                   md.append(f"\n> ⚠️ 问题过多，仅展示前 200 条。\n")
@@ -410,48 +400,44 @@ jobs:
           EOF
 
       - name: 推送报告到仓库
-        # 仅对 push 事件生效，避免 PR 事件由于权限导致失败
-        if: github.event_name == 'push'
+        if: always() && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
         run: |
-          echo "=== 检查报告文件是否存在 ==="
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            TARGET_BRANCH="${{ github.head_ref }}"
+          else
+            TARGET_BRANCH="${{ github.ref_name }}"
+          fi
+          
+          echo "=== 目标分支: $TARGET_BRANCH ==="
+          
           if [ ! -f log/README.md ]; then
             echo "❌ 报告文件未生成，跳过推送"
             exit 0
           fi
 
-          echo "=== 配置 Git 身份 ==="
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-          echo "=== 添加文件变更 ==="
           git add log/README.md
-          git status
-
+          
           if git diff --cached --quiet; then
             echo "✅ log/README.md 内容无变化，无需提交"
             exit 0
           fi
 
-          echo "=== 提交变更 ==="
           git commit -m "docs: 自动更新代码检查报告 [skip ci]"
 
-          echo "=== 推送到远程仓库 ==="
-          # 如果推送因为远程有新代码而失败，先硬重置到远程，再把我们的新报告覆盖上去，再推送
-          if ! git push origin HEAD:${{ github.ref_name }}; then
+          echo "=== 推送到远程分支 $TARGET_BRANCH ==="
+          if ! git push origin HEAD:$TARGET_BRANCH; then
             echo "⚠️ 普通推送失败，检测到远程可能有新提交。拉取最新代码并强制覆盖报告文件..."
-            git fetch origin ${{ github.ref_name }}
-            # 暂存我们的报告文件
+            git fetch origin $TARGET_BRANCH
             cp log/README.md /tmp/README.md
-            # 硬重置到远程最新状态
-            git reset --hard origin/${{ github.ref_name }}
-            # 重新生成目录并覆盖报告文件
+            git reset --hard origin/$TARGET_BRANCH
             mkdir -p log
             cp /tmp/README.md log/README.md
-            # 重新提交
             git add log/README.md
             git commit -m "docs: 自动更新代码检查报告 [skip ci]" || echo "无新内容需提交"
-            # 再次推送
-            git push origin HEAD:${{ github.ref_name }} || {
+            git push origin HEAD:$TARGET_BRANCH || {
               echo "❌ 推送失败！请检查："
               echo "1. 仓库 Settings -> Actions -> General -> Workflow permissions 是否设为 Read and write"
               echo "2. 分支是否有保护规则（Settings -> Branches）"
