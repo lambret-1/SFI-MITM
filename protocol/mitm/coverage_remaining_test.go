@@ -9,12 +9,14 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -195,6 +197,51 @@ func Test签发叶子证书_缓存命中(t *testing.T) {
 	// 验证两次返回的是同一个证书对象（缓存命中）
 	if 证书1 != 证书2 {
 		t.Error("期望第二次签发命中缓存，返回相同证书对象")
+	}
+}
+
+// Test签发叶子证书_并发双重检查缓存命中 验证并发签发时双重检查缓存命中分支
+func Test签发叶子证书_并发双重检查缓存命中(t *testing.T) {
+	svc, _, _ := 创建完整TLS服务(t)
+
+	// 并发签发多个不同域名的证书，触发双重检查缓存命中
+	并发数 := 10
+	等待组 := sync.WaitGroup{}
+	等待组.Add(并发数)
+	结果通道 := make(chan *tls.Certificate, 并发数)
+
+	for i := 0; i < 并发数; i++ {
+		go func(序号 int) {
+			defer 等待组.Done()
+			域名 := fmt.Sprintf("concurrent%d.example.com", 序号)
+			证书, err := svc.签发叶子证书(域名)
+			if err != nil {
+				t.Errorf("并发签发失败: %v", err)
+				return
+			}
+			结果通道 <- 证书
+		}(i)
+	}
+
+	等待组.Wait()
+	close(结果通道)
+
+	// 验证所有证书都生成成功
+	证书数量 := 0
+	for range 结果通道 {
+		证书数量++
+	}
+	if 证书数量 != 并发数 {
+		t.Errorf("期望生成 %d 个证书，实际 %d", 并发数, 证书数量)
+	}
+
+	// 再次签发相同域名，验证缓存命中（双重检查）
+	for i := 0; i < 并发数; i++ {
+		域名 := fmt.Sprintf("concurrent%d.example.com", i)
+		_, err := svc.签发叶子证书(域名)
+		if err != nil {
+			t.Errorf("缓存命中签发失败: %v", err)
+		}
 	}
 }
 
