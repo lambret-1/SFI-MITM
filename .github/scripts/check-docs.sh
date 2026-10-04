@@ -1,12 +1,22 @@
 #!/bin/bash
 # 接入文档门禁检查脚本
 # 检查 README/README.md 的存在性、结构完整性、与 sing-box 分支代码的一致性
+# 输出：doc_summary.log（供 report job 解析生成可视化报告）
 
 set -e
 
 DOC_PATH="README/README.md"
+SUMMARY_LOG="doc_summary.log"
 ERRORS=0
 WARNINGS=0
+
+# 清空 summary log
+> "$SUMMARY_LOG"
+
+# 辅助函数：记录到 summary log
+log_summary() {
+    echo "$1" >> "$SUMMARY_LOG"
+}
 
 echo "=========================================="
 echo "  SFI 接入 sing-box 内核文档门禁检查"
@@ -17,10 +27,12 @@ echo ""
 echo "【1/5】文档存在性检查"
 if [ ! -f "$DOC_PATH" ]; then
     echo "  ❌ 文档不存在: $DOC_PATH"
+    log_summary "❌ 文档存在性 | 文档不存在: $DOC_PATH"
     ERRORS=$((ERRORS + 1))
 else
     DOC_LINES=$(wc -l < "$DOC_PATH")
     echo "  ✅ 文档存在: $DOC_PATH (${DOC_LINES} 行)"
+    log_summary "✅ 文档存在性 | 文档存在，共 ${DOC_LINES} 行"
 fi
 echo ""
 
@@ -66,9 +78,11 @@ if [ ${#MISSING_CHAPTERS[@]} -gt 0 ]; then
     for ch in "${MISSING_CHAPTERS[@]}"; do
         echo "      - $ch"
     done
+    log_summary "❌ 文档结构完整性 | 缺少 ${#MISSING_CHAPTERS[@]} 个章节: ${MISSING_CHAPTERS[*]}"
     ERRORS=$((ERRORS + ${#MISSING_CHAPTERS[@]}))
 else
     echo "  ✅ 全部 25 章完整"
+    log_summary "✅ 文档结构完整性 | 全部 25 章完整"
 fi
 echo ""
 
@@ -80,9 +94,12 @@ elif [ -d "sing-box-core" ]; then
     CORE_DIR="sing-box-core"
 else
     echo "  ⚠️ 未找到 sing-box 核心代码目录，跳过 API 一致性检查"
+    log_summary "⚠️ API一致性检查 | 未找到 sing-box 核心代码目录，跳过"
     CORE_DIR=""
+    WARNINGS=$((WARNINGS + 1))
 fi
 
+API_ERRORS=0
 if [ -n "$CORE_DIR" ]; then
     # 检查 MITMStatus 字段
     echo "  检查 MITMStatus 字段..."
@@ -90,7 +107,7 @@ if [ -n "$CORE_DIR" ]; then
         echo "    ✅ MITMStatus 字段正确（CAInstalled/ActiveConnections）"
     else
         echo "    ❌ MITMStatus 字段不正确（应为 CAInstalled/ActiveConnections）"
-        ERRORS=$((ERRORS + 1))
+        API_ERRORS=$((API_ERRORS + 1))
     fi
 
     # 检查 GenerateMITMCA 签名
@@ -99,7 +116,7 @@ if [ -n "$CORE_DIR" ]; then
         echo "    ✅ GenerateMITMCA 签名正确（certificatePath, privateKeyPath）"
     else
         echo "    ❌ GenerateMITMCA 签名不正确（应为 certificatePath, privateKeyPath）"
-        ERRORS=$((ERRORS + 1))
+        API_ERRORS=$((API_ERRORS + 1))
     fi
 
     # 检查 TypeMITM 位置
@@ -108,7 +125,7 @@ if [ -n "$CORE_DIR" ]; then
         echo "    ✅ TypeMITM 位置正确（constant/proxy.go）"
     else
         echo "    ❌ TypeMITM 位置不正确（应为 constant/proxy.go）"
-        ERRORS=$((ERRORS + 1))
+        API_ERRORS=$((API_ERRORS + 1))
     fi
 
     # 检查 Service Registry 位置
@@ -117,7 +134,7 @@ if [ -n "$CORE_DIR" ]; then
         echo "    ✅ Service Registry 位置正确（include/mitm.go）"
     else
         echo "    ❌ Service Registry 位置不正确（应为 include/mitm.go）"
-        ERRORS=$((ERRORS + 1))
+        API_ERRORS=$((API_ERRORS + 1))
     fi
 
     # 检查 TunOptions 类型
@@ -126,7 +143,7 @@ if [ -n "$CORE_DIR" ]; then
         echo "    ✅ TunOptions 类型正确（接口，非结构体）"
     else
         echo "    ❌ TunOptions 类型不正确（应为接口，非结构体）"
-        ERRORS=$((ERRORS + 1))
+        API_ERRORS=$((API_ERRORS + 1))
     fi
 
     # 检查 libbox/mitm.go 文件名
@@ -135,7 +152,14 @@ if [ -n "$CORE_DIR" ]; then
         echo "    ✅ libbox MITM 文件名正确（mitm.go）"
     else
         echo "    ❌ libbox MITM 文件名不正确（应为 mitm.go）"
-        ERRORS=$((ERRORS + 1))
+        API_ERRORS=$((API_ERRORS + 1))
+    fi
+
+    if [ "$API_ERRORS" -gt 0 ]; then
+        log_summary "❌ API一致性检查 | 发现 $API_ERRORS 个 API 名称与内核代码不一致"
+        ERRORS=$((ERRORS + API_ERRORS))
+    else
+        log_summary "✅ API一致性检查 | 全部 6 项 API 名称与内核代码一致"
     fi
 fi
 echo ""
@@ -153,12 +177,15 @@ if grep -q "完整配置 JSON 示例" "$DOC_PATH"; then
     done
     if [ ${#MISSING_FIELDS[@]} -gt 0 ]; then
         echo "  ⚠️ 配置示例缺少字段: ${MISSING_FIELDS[*]}"
+        log_summary "⚠️ 配置JSON示例 | 缺少字段: ${MISSING_FIELDS[*]}"
         WARNINGS=$((WARNINGS + ${#MISSING_FIELDS[@]}))
     else
         echo "  ✅ 配置示例包含全部关键顶层字段"
+        log_summary "✅ 配置JSON示例 | 包含全部 8 个关键顶层字段"
     fi
 else
     echo "  ⚠️ 未找到完整配置 JSON 示例章节"
+    log_summary "⚠️ 配置JSON示例 | 未找到完整配置 JSON 示例章节"
     WARNINGS=$((WARNINGS + 1))
 fi
 echo ""
@@ -170,9 +197,11 @@ CODE_BLOCK_MARKER='^```'
 CODE_BLOCKS=$(grep -c "$CODE_BLOCK_MARKER" "$DOC_PATH" 2>/dev/null || echo 0)
 if [ $((CODE_BLOCKS % 2)) -ne 0 ]; then
     echo "  ❌ 存在未闭合的代码块（代码块标记数量为奇数: $CODE_BLOCKS）"
+    log_summary "❌ Markdown格式 | 存在未闭合的代码块（标记数量: $CODE_BLOCKS）"
     ERRORS=$((ERRORS + 1))
 else
     echo "  ✅ 代码块闭合正常（共 $((CODE_BLOCKS / 2)) 个代码块）"
+    log_summary "✅ Markdown格式 | 代码块闭合正常（共 $((CODE_BLOCKS / 2)) 个）"
 fi
 
 # 检查表格格式（简单检查 | 数量）
@@ -187,6 +216,9 @@ echo "=========================================="
 echo "  错误数: $ERRORS"
 echo "  警告数: $WARNINGS"
 echo ""
+
+# 记录汇总到 summary log
+log_summary "📊 文档检查汇总 | 错误: $ERRORS, 警告: $WARNINGS"
 
 if [ "$ERRORS" -gt 0 ]; then
     echo "❌ 文档门禁检查未通过，存在 $ERRORS 个错误"

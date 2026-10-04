@@ -279,7 +279,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: doc-check-results
-          path: sfi/doc-check-*.log
+          path: |
+            sfi/doc_summary.log
           if-no-files-found: ignore
           retention-days: 1
 
@@ -308,6 +309,12 @@ jobs:
           name: swiftlint-json
           path: ./artifacts/swiftlint
 
+      - name: 下载文档检查结果
+        uses: actions/download-artifact@v4
+        with:
+          name: doc-check-results
+          path: ./artifacts/doc-check
+
       - name: 生成可视化报告 (log/README.md)
         run: |
           cat << 'PYTHON_SCRIPT' > /tmp/generate_report.py
@@ -335,24 +342,39 @@ jobs:
               except Exception as e:
                   print(f"⚠️ 解析 SwiftLint JSON 失败: {e}")
 
+          # 解析文档检查结果
+          doc_summary = []
+          doc_summary_path = './artifacts/doc-check/doc_summary.log'
+          if os.path.exists(doc_summary_path):
+              with open(doc_summary_path, 'r', encoding='utf-8') as f:
+                  doc_summary = [line.strip() for line in f if line.strip()]
+
           # 修复大小写导致的 KeyError: 'Error' 问题
           swift_errors = [i for i in swiftlint_issues if i.get('severity', '').lower() == 'error']
           swift_warnings = [i for i in swiftlint_issues if i.get('severity', '').lower() == 'warning']
 
           static_fails = sum(1 for line in quick_summary if line.startswith('❌'))
-          total_errors = static_fails + len(swift_errors)
+          doc_fails = sum(1 for line in doc_summary if line.startswith('❌'))
+          total_errors = static_fails + len(swift_errors) + doc_fails
+          doc_warnings = sum(1 for line in doc_summary if line.startswith('⚠️'))
+          total_warnings = len(swift_warnings) + doc_warnings
 
           china_tz = timezone(timedelta(hours=8))
           china_time = datetime.now(china_tz).strftime('%Y-%m-%d %H:%M:%S')
 
           md = []
           md.append("# 🚀 PR 检查汇总报告\n")
-          md.append("> 由 GitHub Actions 自动生成，包含静态检查与 SwiftLint 结果。\n")
+          md.append("> 由 GitHub Actions 自动生成，包含静态检查、SwiftLint 与接入文档门禁结果。\n")
           md.append(f"**更新时间 (中国标准时间)**: `{china_time}`\n")
 
           md.append("## 📊 总体统计\n")
           md.append(f"- 🔴 **严重错误**: {total_errors}")
-          md.append(f"- 🟡 **警告**: {len(swift_warnings)}\n")
+          md.append(f"  - 静态检查: {static_fails}")
+          md.append(f"  - SwiftLint: {len(swift_errors)}")
+          md.append(f"  - 文档门禁: {doc_fails}")
+          md.append(f"- 🟡 **警告**: {total_warnings}")
+          md.append(f"  - SwiftLint: {len(swift_warnings)}")
+          md.append(f"  - 文档门禁: {doc_warnings}\n")
 
           md.append("## 🧱 静态检查详情\n")
           if not quick_summary:
@@ -384,6 +406,35 @@ jobs:
               for e in quick_errors:
                   md.append(e)
               md.append("```\n")
+
+          md.append("## 📄 接入文档门禁检查详情\n")
+          if not doc_summary:
+              md.append("⚠️ 未获取到文档检查汇总信息\n")
+          else:
+              md.append("| 检查项 | 状态 | 详情 |")
+              md.append("| :--- | :---: | :--- |")
+              for line in doc_summary:
+                  if line.startswith('❌'):
+                      parts = line.split('|', 1)
+                      name = parts[0].replace('❌', '').strip()
+                      detail = parts[1].strip() if len(parts) > 1 else ''
+                      md.append(f"| {name} | ❌ 失败 | {detail} |")
+                  elif line.startswith('⚠️'):
+                      parts = line.split('|', 1)
+                      name = parts[0].replace('⚠️', '').strip()
+                      detail = parts[1].strip() if len(parts) > 1 else ''
+                      md.append(f"| {name} | ⚠️ 警告 | {detail} |")
+                  elif line.startswith('📊'):
+                      parts = line.split('|', 1)
+                      name = parts[0].replace('📊', '').strip()
+                      detail = parts[1].strip() if len(parts) > 1 else ''
+                      md.append(f"| {name} | 📊 汇总 | {detail} |")
+                  else:
+                      parts = line.split('|', 1)
+                      name = parts[0].replace('✅', '').strip()
+                      detail = parts[1].strip() if len(parts) > 1 else ''
+                      md.append(f"| {name} | ✅ 通过 | {detail} |")
+              md.append("")
 
           md.append("## 🔍 SwiftLint 检查汇总\n")
           md.append("| 检查项 | 状态 | 详情 |")
