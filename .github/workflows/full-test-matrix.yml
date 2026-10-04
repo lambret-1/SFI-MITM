@@ -1,0 +1,406 @@
+name: 全项目测试矩阵
+
+on:
+  push:
+    branches:
+      - sing-box
+    paths-ignore:
+      # 仅修改 MITM 相关文件时不触发本流水线，由 MITM 测试矩阵专项处理
+      - 'protocol/mitm/**'
+      - 'option/mitm.go'
+      - 'experimental/libbox/mitm.go'
+      - '.github/workflows/mitm-test-matrix.yml'
+      - '**.md'
+  pull_request:
+    branches:
+      - sing-box
+  workflow_dispatch:
+
+concurrency:
+  group: full-test-matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.25.5"
+
+jobs:
+  # ============================================================
+  # 维度一：全量单元测试（Ubuntu，包含 MITM）
+  # ============================================================
+  full-unit-test:
+    name: 全量单元测试 · Ubuntu
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 显示 Go 版本
+        run: go version
+
+      - name: 生成测试 CA 证书（MITM 测试需要）
+        run: |
+          openssl req -x509 -newkey rsa:2048 -keyout /tmp/mitm-ca.key -out /tmp/mitm-ca.pem \
+            -days 3650 -nodes -subj "/CN=Full Test Matrix CA" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,keyCertSign"
+
+      - name: 编译全部包
+        run: |
+          echo "=== 编译全部包（排除 experimental 平台限制包）==="
+          go build $(go list ./... | grep -v '/experimental/')
+          echo "✅ 全部包编译通过"
+
+      - name: 运行全量单元测试（包含 MITM）
+        run: |
+          echo "=== 全量单元测试（排除 experimental 平台限制包）==="
+          go test -count=1 -timeout 600s \
+            $(go list ./... | grep -v '/experimental/') 2>&1 | tee /tmp/test-output.txt
+          echo ""
+          echo "=== 测试结果汇总 ==="
+          grep -E "^(ok|FAIL|---)" /tmp/test-output.txt | sort
+        env:
+          MITM_TEST_CA_CERT: /tmp/mitm-ca.pem
+          MITM_TEST_CA_KEY: /tmp/mitm-ca.key
+
+  # ============================================================
+  # 维度二：Race Detector 全量测试（Ubuntu，包含 MITM）
+  # ============================================================
+  full-race-test:
+    name: Race Detector · 全量
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 生成测试 CA 证书
+        run: |
+          openssl req -x509 -newkey rsa:2048 -keyout /tmp/mitm-ca.key -out /tmp/mitm-ca.pem \
+            -days 3650 -nodes -subj "/CN=Full Race Test CA" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,keyCertSign"
+
+      - name: 运行 Race Detector 全量测试
+        run: |
+          echo "=== Race Detector 全量测试（排除 experimental 平台限制包）==="
+          go test -race -count=1 -timeout 600s \
+            $(go list ./... | grep -v '/experimental/') 2>&1 | tee /tmp/race-output.txt
+          echo ""
+          echo "=== Race 测试结果汇总 ==="
+          grep -E "^(ok|FAIL)" /tmp/race-output.txt | sort
+        env:
+          MITM_TEST_CA_CERT: /tmp/mitm-ca.pem
+          MITM_TEST_CA_KEY: /tmp/mitm-ca.key
+
+  # ============================================================
+  # 维度三：全量覆盖率收集（Ubuntu，包含 MITM）
+  # ============================================================
+  full-coverage:
+    name: 全量覆盖率
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 生成测试 CA 证书
+        run: |
+          openssl req -x509 -newkey rsa:2048 -keyout /tmp/mitm-ca.key -out /tmp/mitm-ca.pem \
+            -days 3650 -nodes -subj "/CN=Full Coverage CA" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,keyCertSign"
+
+      - name: 运行全量覆盖率测试
+        run: |
+          echo "=== 收集全量覆盖率（排除 experimental 平台限制包）==="
+          go test -coverprofile=full_coverage.out -covermode=atomic \
+            -count=1 -timeout 600s \
+            $(go list ./... | grep -v '/experimental/') 2>&1 | tail -20
+          echo ""
+          echo "=== 覆盖率总览（前20行）==="
+          go tool cover -func=full_coverage.out | head -20
+          echo "..."
+          echo "=== 覆盖率总览（最后5行）==="
+          go tool cover -func=full_coverage.out | tail -5
+          echo ""
+          echo "=== 生成 HTML 覆盖率报告 ==="
+          go tool cover -html=full_coverage.out -o full_coverage.html
+          ls -lh full_coverage.out full_coverage.html
+        env:
+          MITM_TEST_CA_CERT: /tmp/mitm-ca.pem
+          MITM_TEST_CA_KEY: /tmp/mitm-ca.key
+
+      - name: 上传覆盖率产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-coverage-report
+          path: |
+            full_coverage.out
+            full_coverage.html
+          retention-days: 30
+
+  # ============================================================
+  # 维度四：macOS 全量测试（包含 MITM）
+  # ============================================================
+  full-macos-test:
+    name: 全量测试 · macOS
+    runs-on: macos-14
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 显示环境
+        run: |
+          go version
+          uname -a
+
+      - name: 编译 sing-box
+        run: go build -o singbox ./cmd/sing-box
+
+      - name: 生成测试 CA 证书（使用 singbox 命令，避免 macOS LibreSSL 问题）
+        run: |
+          ./singbox generate mitm-ca --name "Full macOS Test CA" --validity 3650 --output /tmp/mitm-ca-out
+          cp /tmp/mitm-ca-out/ca.pem /tmp/mitm-ca.pem
+          cp /tmp/mitm-ca-out/ca.key /tmp/mitm-ca.key
+          echo "✅ CA 证书生成完成"
+
+      - name: 运行全量测试（macOS，包含 MITM）
+        run: |
+          echo "=== macOS 全量测试（排除 experimental 平台限制包）==="
+          go test -count=1 -timeout 600s \
+            $(go list ./... | grep -v '/experimental/') 2>&1 | tee /tmp/macos-test-output.txt
+          echo ""
+          echo "=== 测试结果汇总 ==="
+          grep -E "^(ok|FAIL)" /tmp/macos-test-output.txt | sort
+        env:
+          MITM_TEST_CA_CERT: /tmp/mitm-ca.pem
+          MITM_TEST_CA_KEY: /tmp/mitm-ca.key
+
+  # ============================================================
+  # 维度五：交叉编译矩阵（多平台）
+  # ============================================================
+  cross-compile-matrix:
+    name: 交叉编译 · ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: linux
+            goarch: armv7
+          - goos: darwin
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: freebsd
+            goarch: amd64
+          - goos: windows
+            goarch: amd64
+          - goos: android
+            goarch: arm64
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 交叉编译 ${{ matrix.goos }}/${{ matrix.goarch }}
+        run: |
+          echo "=== 交叉编译：${{ matrix.goos }}/${{ matrix.goarch }} ==="
+          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+            go build -o singbox-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/sing-box
+          ls -lh singbox-${{ matrix.goos }}-${{ matrix.goarch }}
+          echo "✅ 交叉编译成功：${{ matrix.goos }}/${{ matrix.goarch }}"
+
+  # ============================================================
+  # 维度六：构建产物验证（sing-box 主程序 + version 命令）
+  # ============================================================
+  build-verify:
+    name: 构建产物验证
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 编译 sing-box 主程序
+        run: |
+          go build -o singbox -trimpath -ldflags="-s -w" ./cmd/sing-box
+          ls -lh singbox
+          file singbox
+
+      - name: 验证 version 命令
+        run: |
+          ./singbox version
+          echo "✅ version 命令正常"
+
+      - name: 验证 help 命令
+        run: |
+          ./singbox help 2>&1 | head -20
+          echo "✅ help 命令正常"
+
+      - name: 验证 schema 命令
+        run: |
+          ./singbox schema > /tmp/schema.json
+          python3 -c "import json; d=json.load(open('/tmp/schema.json')); print(f'schema 顶层 keys: {list(d.keys())}')"
+          echo "✅ schema 命令正常"
+
+      - name: 验证 generate mitm-ca 命令
+        run: |
+          ./singbox generate mitm-ca --name "Build Verify CA" --validity 365 --output /tmp/ca-verify
+          ls -lh /tmp/ca-verify/
+          openssl x509 -in /tmp/ca-verify/ca.pem -noout -subject -dates -ext basicConstraints 2>&1
+          echo "✅ generate mitm-ca 命令正常"
+
+      - name: 上传 sing-box 二进制
+        uses: actions/upload-artifact@v4
+        with:
+          name: singbox-linux-amd64
+          path: singbox
+          retention-days: 7
+
+  # ============================================================
+  # 维度七：配置校验矩阵（包含 MITM 配置）
+  # ============================================================
+  config-verify-matrix:
+    name: 配置校验 · ${{ matrix.config_name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - config_name: "基础配置"
+            config_json: |
+              {"log": {"level": "info"},
+               "inbounds": [{"type": "direct", "tag": "direct-in"}],
+               "outbounds": [{"type": "direct", "tag": "direct"}]}
+          - config_name: "TUN模式"
+            config_json: |
+              {"log": {"level": "info"},
+               "inbounds": [{"type": "tun", "tag": "tun-in", "interface_name": "utun99"}],
+               "outbounds": [{"type": "direct", "tag": "direct"}]}
+          - config_name: "SOCKS入站"
+            config_json: |
+              {"log": {"level": "info"},
+               "inbounds": [{"type": "socks", "tag": "socks-in", "listen": "127.0.0.1", "listen_port": 1080}],
+               "outbounds": [{"type": "direct", "tag": "direct"}]}
+          - config_name: "HTTP入站"
+            config_json: |
+              {"log": {"level": "info"},
+               "inbounds": [{"type": "http", "tag": "http-in", "listen": "127.0.0.1", "listen_port": 8080}],
+               "outbounds": [{"type": "direct", "tag": "direct"}]}
+          - config_name: "Mixed入站"
+            config_json: |
+              {"log": {"level": "info"},
+               "inbounds": [{"type": "mixed", "tag": "mixed-in", "listen": "127.0.0.1", "listen_port": 2080}],
+               "outbounds": [{"type": "direct", "tag": "direct"}]}
+          - config_name: "多入站多出站"
+            config_json: |
+              {"log": {"level": "info"},
+               "inbounds": [
+                 {"type": "socks", "tag": "socks-in", "listen": "127.0.0.1", "listen_port": 1080},
+                 {"type": "http", "tag": "http-in", "listen": "127.0.0.1", "listen_port": 8080}
+               ],
+               "outbounds": [
+                 {"type": "direct", "tag": "direct"},
+                 {"type": "block", "tag": "block"}
+               ]}
+          - config_name: "DNS配置"
+            config_json: |
+              {"log": {"level": "info"},
+               "dns": {"servers": [{"address": "8.8.8.8"}, {"address": "1.1.1.1"}]},
+               "inbounds": [{"type": "direct", "tag": "direct-in"}],
+               "outbounds": [{"type": "direct", "tag": "direct"}]}
+          - config_name: "路由规则"
+            config_json: |
+              {"log": {"level": "info"},
+               "inbounds": [{"type": "direct", "tag": "direct-in"}],
+               "outbounds": [
+                 {"type": "direct", "tag": "direct"},
+                 {"type": "block", "tag": "block"}
+               ],
+               "route": {"rules": [
+                 {"domain_suffix": ["ad.com"], "outbound": "block"},
+                 {"ip_cidr": ["10.0.0.0/8"], "outbound": "direct"}
+               ]}}
+          - config_name: "MITM完整配置"
+            config_json: |
+              {"log": {"level": "info"},
+               "inbounds": [{"type": "direct", "tag": "direct-in"}],
+               "outbounds": [{"type": "direct", "tag": "direct"}],
+               "services": [{
+                 "type": "mitm", "tag": "mitm", "enabled": true,
+                 "ca": {"certificate": "/tmp/mitm-ca.pem", "private_key": "/tmp/mitm-ca.key"},
+                 "match": {"domain_suffix": ["example.com"]},
+                 "on_error": "bypass", "upstream_timeout": 30,
+                 "rewrite": {"enabled": true, "rules": [{"domain_suffix": ["example.com"], "request_header": {"X-MITM": "true"}}]}
+               }]}
+          - config_name: "MITM未启用"
+            config_json: |
+              {"log": {"level": "info"},
+               "inbounds": [{"type": "direct", "tag": "direct-in"}],
+               "outbounds": [{"type": "direct", "tag": "direct"}],
+               "services": [{"type": "mitm", "tag": "mitm", "enabled": false}]}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 编译 sing-box
+        run: go build -o singbox ./cmd/sing-box
+
+      - name: 生成测试 CA 证书
+        run: |
+          openssl req -x509 -newkey rsa:2048 -keyout /tmp/mitm-ca.key -out /tmp/mitm-ca.pem \
+            -days 3650 -nodes -subj "/CN=Config Verify CA" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,keyCertSign"
+
+      - name: 校验配置：${{ matrix.config_name }}
+        run: |
+          echo "=== 配置场景：${{ matrix.config_name }} ==="
+          cat > /tmp/test-config.json << 'CONFIGEOF'
+          ${{ matrix.config_json }}
+          CONFIGEOF
+          ./singbox check -c /tmp/test-config.json
+          echo "✅ 配置校验通过：${{ matrix.config_name }}"
