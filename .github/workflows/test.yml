@@ -40,3 +40,11 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: bash
         run: go test -v -tags "$BUILD_TAGS" -ldflags "$LDFLAGS_SHARED" ./...
+      # Phase 18：test/ 是独立 Go module（module test），根目录 go test ./... 不会跨越 module 边界
+      # 必须单独进入 test/ 目录运行 MITM 专项测试（test/mitm/ 共 47 项）
+      - name: Test MITM (test/mitm)
+        shell: bash
+        run: |
+          cd test
+          go mod download
+          go test -v -count=1 -timeout 120s ./mitm/
