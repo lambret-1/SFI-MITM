@@ -425,6 +425,87 @@ func itoa(n int) string {
 	return string(数字)
 }
 
+// Test处理请求_重写响应失败 验证重写响应失败时记录警告
+func Test处理请求_重写响应失败(t *testing.T) {
+	svc, ca证书, ca私钥 := 创建完整TLS服务(t)
+	上游证书 := 签发上游测试证书(t, ca证书, ca私钥, "example.com")
+
+	// 初始化重写引擎，包含 Body 替换规则
+	svc.重写引擎 = rewrite.NewEngine(option.MITMRewriteOptions{
+		Enabled: true,
+		Rules: []option.MITMRewriteRule{
+			{
+				DomainSuffix: []string{"example.com"},
+				BodyReplace: []option.MITMBodyReplaceRule{
+					{
+						Find:    "old",
+						Replace: "new",
+					},
+				},
+			},
+		},
+	})
+
+	// mock Router：建立上游 TLS 服务器，返回无效的 gzip 压缩响应体
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			tls配置 := &tls.Config{
+				Certificates: []tls.Certificate{上游证书},
+				NextProtos:   []string{"http/1.1"},
+			}
+			tls服务端 := tls.Server(conn, tls配置)
+			defer tls服务端.Close()
+			if err := tls服务端.Handshake(); err != nil {
+				return
+			}
+			读取器 := bufio.NewReader(tls服务端)
+			req, err := http.ReadRequest(读取器)
+			if err != nil {
+				return
+			}
+			// 返回 Content-Encoding: gzip 但响应体不是有效的 gzip 数据
+			无效gzip数据 := []byte("this is not valid gzip data")
+			tls服务端.Write([]byte("HTTP/1.1 200 OK\r\n" +
+				"Content-Type: text/plain\r\n" +
+				"Content-Encoding: gzip\r\n" +
+				"Content-Length: " + itoa(len(无效gzip数据)) + "\r\n" +
+				"Connection: close\r\n\r\n"))
+			tls服务端.Write(无效gzip数据)
+			req.Body.Close()
+		},
+	}
+
+	处理器 := 新建HTTP1处理器(svc, mock, adapter.InboundContext{})
+
+	req := &http.Request{
+		Method: "GET",
+		Host:   "example.com",
+		URL:    &url.URL{Path: "/", Host: "example.com"},
+		Header: make(http.Header),
+		Body:   io.NopCloser(strings.NewReader("")),
+	}
+
+	写入缓冲区 := &bytes.Buffer{}
+	写入器 := bufio.NewWriter(写入缓冲区)
+	读取器 := bufio.NewReader(strings.NewReader(""))
+
+	err := 处理器.处理请求(context.Background(), req, 读取器, 写入器)
+	if err != nil {
+		t.Fatalf("处理请求失败: %v", err)
+	}
+	写入器.Flush()
+
+	// 验证响应仍然返回（重写失败时记录警告，不影响响应）
+	响应, err := http.ReadResponse(bufio.NewReader(写入缓冲区), req)
+	if err != nil {
+		t.Fatalf("读取响应失败: %v", err)
+	}
+	defer 响应.Body.Close()
+	if 响应.StatusCode != 200 {
+		t.Errorf("期望 200 状态码，实际 %d", 响应.StatusCode)
+	}
+}
+
 // 确保 io 被引用
 var _ io.Reader
 

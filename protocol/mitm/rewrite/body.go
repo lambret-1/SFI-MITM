@@ -66,6 +66,8 @@ func (w *体重写器) 重写响应体(resp *http.Response, 替换规则 []体�
 	编码 := strings.ToLower(resp.Header.Get("Content-Encoding"))
 	明文, err := 解压(原始数据, 编码)
 	if err != nil {
+		// 解压失败时恢复原始响应体，避免后续写入响应时出错
+		resp.Body = io.NopCloser(bytes.NewReader(原始数据))
 		return E.Cause(err, "mitm: 解压响应体失败")
 	}
 
@@ -78,6 +80,8 @@ func (w *体重写器) 重写响应体(resp *http.Response, 替换规则 []体�
 	// 重压缩
 	压缩后, err := 压缩(修改后, 编码)
 	if err != nil {
+		// 压缩失败时恢复原始响应体，避免后续写入响应时出错
+		resp.Body = io.NopCloser(bytes.NewReader(原始数据))
 		return E.Cause(err, "mitm: 压缩响应体失败")
 	}
 
