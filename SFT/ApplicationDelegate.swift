@@ -20,7 +20,12 @@ class ApplicationDelegate: NSObject, UIApplicationDelegate {
                 port = 7990
                 NSLog("Failed to get available port for control server: \(error.localizedDescription)")
             }
-            secret = LibboxRandomHex(16)!.value
+            if let randomHex = LibboxRandomHex(16) {
+                secret = randomHex.value
+            } else {
+                secret = UUID().uuidString.replacingOccurrences(of: "-", with: "")
+                NSLog("LibboxRandomHex 返回 nil，使用 UUID 作为备用密钥")
+            }
             Task {
                 await SharedPreferences.commandServerPort.set(port)
                 await SharedPreferences.commandServerSecret.set(secret)
