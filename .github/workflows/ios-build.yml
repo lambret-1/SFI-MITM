@@ -1,6 +1,6 @@
 name: SFI iOS 构建
 
-on:
+off:
   push:
     branches:
       - sing-box-for-apple
