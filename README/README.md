@@ -977,13 +977,15 @@ Frameworks/
 
 ### MITMMatchConfiguration — 域名匹配配置
 
-| 字段 | 类型 | 说明 | JSON 字段 |
-|------|------|------|-----------|
-| `domain` | `[String]` | 精确匹配域名 | `domain` |
-| `domainSuffix` | `[String]` | 后缀匹配域名 | `domain_suffix` |
-| `domainKeyword` | `[String]` | 关键字匹配域名 | `domain_keyword` |
-| `domainRegex` | `[String]` | 正则匹配域名 | `domain_regex` |
-| `hasRules` | `Bool`（计算属性） | 是否有任何匹配规则 | — |
+> **注意**：Swift 侧配置模型包含 4 个匹配字段，但 Go 侧 `option.MITMMatchOptions` 当前仅支持 `domain` 和 `domain_suffix` 两个字段。`domain_keyword` 和 `domain_regex` 为 Swift 侧预留字段，注入 JSON 时会被 Go 侧忽略。
+
+| 字段 | 类型 | 说明 | JSON 字段 | Go 侧支持 |
+|------|------|------|-----------|-----------|
+| `domain` | `[String]` | 精确匹配域名 | `domain` | ✅ 支持 |
+| `domainSuffix` | `[String]` | 后缀匹配域名 | `domain_suffix` | ✅ 支持 |
+| `domainKeyword` | `[String]` | 关键字匹配域名（预留） | `domain_keyword` | ❌ Go 侧暂不支持 |
+| `domainRegex` | `[String]` | 正则匹配域名（预留） | `domain_regex` | ❌ Go 侧暂不支持 |
+| `hasRules` | `Bool`（计算属性） | 是否有任何匹配规则 | — | — |
 
 ### MITMRewriteConfiguration — 重写配置
 
@@ -995,19 +997,21 @@ Frameworks/
 
 ### MITMRewriteRule — 重写规则
 
-| 字段 | 类型 | 说明 | JSON 字段 |
-|------|------|------|-----------|
-| `id` | `UUID` | 规则唯一标识（仅 UI） | — |
-| `name` | `String` | 规则名称（仅 UI） | — |
-| `domain` | `[String]` | 精确匹配域名 | `domain` |
-| `domainSuffix` | `[String]` | 后缀匹配域名 | `domain_suffix` |
-| `pathPrefix` | `[String]` | 路径前缀匹配 | `path_prefix` |
-| `method` | `[String]` | HTTP 方法匹配 | `method` |
-| `requestHeader` | `[String: String]` | 请求头添加/修改 | `request_header` |
-| `requestHeaderDelete` | `[String]` | 请求头删除 | `request_header_delete` |
-| `responseHeader` | `[String: String]` | 响应头添加/修改 | `response_header` |
-| `responseHeaderDelete` | `[String]` | 响应头删除 | `response_header_delete` |
-| `bodyReplace` | `[MITMBodyReplace]` | Body 替换规则 | `body_replace` |
+> **注意**：Swift 侧配置模型包含 `domain` 数组和 `pathPrefix` 数组，但 Go 侧 `option.MITMRewriteRule` 当前仅支持 `domain_suffix`（数组）和 `path_prefix`（字符串）。`domain` 为 Swift 侧预留字段，`pathPrefix` 数组在注入 JSON 时取第一个元素。
+
+| 字段 | 类型 | 说明 | JSON 字段 | Go 侧支持 |
+|------|------|------|-----------|-----------|
+| `id` | `UUID` | 规则唯一标识（仅 UI） | — | — |
+| `name` | `String` | 规则名称（仅 UI） | — | — |
+| `domain` | `[String]` | 精确匹配域名（预留） | `domain` | ❌ Go 侧暂不支持 |
+| `domainSuffix` | `[String]` | 后缀匹配域名 | `domain_suffix` | ✅ 支持 |
+| `pathPrefix` | `[String]` | 路径前缀匹配（注入时取第一个元素） | `path_prefix` | ✅ 支持（Go 侧为 string） |
+| `method` | `[String]` | HTTP 方法匹配 | `method` | ✅ 支持 |
+| `requestHeader` | `[String: String]` | 请求头添加/修改 | `request_header` | ✅ 支持 |
+| `requestHeaderDelete` | `[String]` | 请求头删除 | `request_header_delete` | ✅ 支持 |
+| `responseHeader` | `[String: String]` | 响应头添加/修改 | `response_header` | ✅ 支持 |
+| `responseHeaderDelete` | `[String]` | 响应头删除 | `response_header_delete` | ✅ 支持 |
+| `bodyReplace` | `[MITMBodyReplace]` | Body 替换规则 | `body_replace` | ✅ 支持 |
 
 ### MITMBodyReplace — Body 替换规则
 
@@ -1019,10 +1023,12 @@ Frameworks/
 
 ### MITMOnError — 错误处理策略（枚举）
 
-| 枚举值 | 原始值 | 显示名称 | 说明 |
-|--------|--------|----------|------|
-| `bypass` | `"bypass"` | 绕过（透传） | MITM 失败时直接透传原始流量 |
-| `reject` | `"reject"` | 拒绝（断开） | MITM 失败时断开连接 |
+> **注意**：Swift 侧枚举值为 `bypass` 和 `reject`，但 Go 侧 `option.MITMServiceOptions.OnError` 注释定义为 `bypass`（默认）和 `block`。注入 JSON 时 Swift 侧的 `reject` 会被序列化为 `"reject"`，Go 侧解析时未知值会回退到默认行为（bypass）。建议后续统一为 `block`。
+
+| 枚举值 | 原始值 | 显示名称 | 说明 | Go 侧对应 |
+|--------|--------|----------|------|-----------|
+| `bypass` | `"bypass"` | 绕过（透传） | MITM 失败时直接透传原始流量 | ✅ `bypass`（默认） |
+| `reject` | `"reject"` | 拒绝（断开） | MITM 失败时断开连接 | ⚠️ Go 侧为 `block`，当前不匹配 |
 
 ### MITMRuntimeStatus — MITM 运行状态
 
@@ -1094,9 +1100,12 @@ let error = LibboxGenerateMITMCA(certificatePath, privateKeyPath)
 
 ### LibboxGetMITMStatus — 查询 MITM 运行状态
 
+**Go 侧定义**（`experimental/libbox/mitm.go`）：
 ```go
-func LibboxGetMITMStatus() *MITMStatus
+func (s *CommandServer) GetMITMStatus() *MITMStatus
 ```
+
+> 注意：此方法是 `CommandServer` 的实例方法，不是包级函数。通过 gomobile bind 导出到 Swift 时，需通过 `commandServer` 实例调用。
 
 **Swift 调用**：
 ```swift
@@ -1113,13 +1122,37 @@ if let status = commandServer.getMITMStatus() {
 | `caInstalled` | `Bool` | 根证书是否已成功加载 |
 | `activeConnections` | `Int32` | 当前活跃 MITM 连接数 |
 
-### LibboxGetMITMLogs — 获取 MITM 日志（预留）
+### LibboxGetMITMLogs — 获取 MITM 日志（迭代器）
 
+**Go 侧定义**（`experimental/libbox/mitm.go`）：
 ```go
-func LibboxGetMITMLogs() string
+func (s *CommandServer) GetMITMLogs() *MITMLogIterator
 ```
 
-返回 MITM 内存日志缓冲区中的日志内容，用于调试控制台显示。
+> 注意：返回 `MITMLogIterator` 迭代器，不是 string。迭代器遵循 `Len()/HasNext()/Next()` 模式，供 Swift 端遍历日志条目，避免一次性把整个切片跨 gomobile 边界传递。
+
+**MITMLogIterator 方法**：
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `Len` | `() -> Int32` | 返回剩余日志条目总数 |
+| `HasNext` | `() -> Bool` | 判断是否还有下一条日志 |
+| `Next` | `() -> MITMLogEntry?` | 返回下一条日志条目，结束返回 nil |
+
+**MITMLogEntry 结构体**：
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `timestamp` | `String` | 时间戳（RFC3339 UTC 格式） |
+| `level` | `Int32` | 日志级别（0=Trace, 1=Debug, 2=Info, 3=Warn, 4=Error） |
+| `message` | `String` | 日志消息内容 |
+
+### LibboxClearMITMLogs — 清空 MITM 日志
+
+**Go 侧定义**（`experimental/libbox/mitm.go`）：
+```go
+func (s *CommandServer) ClearMITMLogs()
+```
+
+清空 MITM 服务内存环形缓冲区中的全部日志条目，对应 Debug Console 中的「清空日志」按钮。
 
 ---
 
@@ -1127,10 +1160,20 @@ func LibboxGetMITMLogs() string
 
 ### sing-box Core 侧
 
-文件：`include/service.go`（sing-box 分支）
+文件：`include/mitm.go`（sing-box 分支）
 
 ```go
-mitm.RegisterService(registry)
+package include
+
+import (
+	"github.com/sagernet/sing-box/adapter/service"
+	"github.com/sagernet/sing-box/protocol/mitm"
+)
+
+// registerMITMService 注册 MITM 服务到服务注册表
+func registerMITMService(registry *service.Registry) {
+	mitm.RegisterService(registry)
+}
 ```
 
 ### 注册流程
@@ -1155,7 +1198,7 @@ service.MustRegister[tun.Interceptor](ctx, svc)
 
 ### 常量定义
 
-文件：`constant/constant.go`
+文件：`constant/proxy.go`（第 49 行）
 
 ```go
 const TypeMITM = "mitm"
@@ -1204,6 +1247,8 @@ if interceptor != nil && interceptor.ShouldIntercept(metadata) {
 
 ### 启用 MITM 的 profile 配置示例
 
+> 以下示例严格对应 Go 侧 `option.MITMServiceOptions` 的实际 JSON 字段。Swift 侧配置模型中预留的 `domain_keyword`、`domain_regex`、`domain`（rewrite 规则）字段不会出现在最终 JSON 中。
+
 ```json
 {
   "services": [
@@ -1217,9 +1262,7 @@ if interceptor != nil && interceptor.ShouldIntercept(metadata) {
       },
       "match": {
         "domain": ["api.example.com"],
-        "domain_suffix": ["example.com"],
-        "domain_keyword": ["test"],
-        "domain_regex": ["^.*\\.example\\.com$"]
+        "domain_suffix": ["example.com"]
       },
       "rewrite": {
         "enabled": true,
@@ -1227,7 +1270,7 @@ if interceptor != nil && interceptor.ShouldIntercept(metadata) {
         "rules": [
           {
             "domain_suffix": ["example.com"],
-            "path_prefix": ["/api"],
+            "path_prefix": "/api",
             "method": ["GET", "POST"],
             "request_header": {
               "X-Test": "rewritten"
@@ -1264,12 +1307,20 @@ if interceptor != nil && interceptor.ShouldIntercept(metadata) {
 | `ca.private_key` | `string` | 启用时必填 | 私钥 PEM 文件路径 |
 | `match.domain` | `[string]` | 否 | 精确匹配域名列表 |
 | `match.domain_suffix` | `[string]` | 否 | 后缀匹配域名列表 |
-| `match.domain_keyword` | `[string]` | 否 | 关键字匹配域名列表 |
-| `match.domain_regex` | `[string]` | 否 | 正则匹配域名列表 |
 | `rewrite.enabled` | `bool` | 否 | 是否启用重写引擎 |
 | `rewrite.max_body_size` | `int` | 否 | 最大 Body 大小（字节），默认 10MB |
 | `rewrite.rules` | `[object]` | 否 | 重写规则列表 |
-| `on_error` | `string` | 否 | 错误处理策略：`bypass`（默认）或 `reject` |
+| `rewrite.rules[].domain_suffix` | `[string]` | 否 | 后缀匹配域名列表（Go 侧仅支持此字段，不支持 `domain`） |
+| `rewrite.rules[].path_prefix` | `string` | 否 | 路径前缀匹配（Go 侧为 string，不是数组；Swift 侧数组注入时取第一个元素） |
+| `rewrite.rules[].method` | `[string]` | 否 | HTTP 方法匹配列表 |
+| `rewrite.rules[].request_header` | `object` | 否 | 需要设置/覆盖的请求头（key-value） |
+| `rewrite.rules[].request_header_delete` | `[string]` | 否 | 需要删除的请求头列表 |
+| `rewrite.rules[].response_header` | `object` | 否 | 需要设置/覆盖的响应头（key-value） |
+| `rewrite.rules[].response_header_delete` | `[string]` | 否 | 需要删除的响应头列表 |
+| `rewrite.rules[].body_replace` | `[object]` | 否 | Body 内容替换规则列表（仅对响应体生效） |
+| `rewrite.rules[].body_replace[].find` | `string` | 否 | 要查找的字符串 |
+| `rewrite.rules[].body_replace[].replace` | `string` | 否 | 替换为的字符串 |
+| `on_error` | `string` | 否 | 错误处理策略：`bypass`（默认，回退到正常路由）或 `block`（关闭连接）。注意：Swift 侧枚举值为 `reject`，与 Go 侧 `block` 不匹配 |
 | `upstream_timeout` | `int` | 否 | 上游连接超时（秒），默认 30 |
 
 ---
@@ -1410,9 +1461,14 @@ sing-box Core
 
 ### ⏳ 待完成
 
+- [ ] **【高优先级】修正 Swift 侧配置模型与 Go 侧不匹配问题**：
+  - `MITMRewriteRule.pathPrefix` 为 `[String]`，但 Go 侧 `option.MITMRewriteRule.PathPrefix` 为 `string`。注入 JSON 时数组类型会导致 Go 侧 `json.Unmarshal` 失败，MITM 服务无法启动。**修复方案**：Swift 侧注入时取 `pathPrefix.first` 转为字符串，或修改 Go 侧为数组类型。
+  - `MITMOnError.reject` 原始值为 `"reject"`，但 Go 侧注释定义为 `"block"`。未知值会回退到默认 bypass 行为。**修复方案**：统一为 `"block"`。
+  - `MITMMatchConfiguration.domainKeyword` 和 `domainRegex` 为 Swift 侧预留字段，Go 侧暂不支持，注入后会被忽略。
+  - `MITMRewriteRule.domain` 为 Swift 侧预留字段，Go 侧暂不支持（仅支持 `domain_suffix`）。
 - [ ] Phase 14：SFI 配置 UI 集成到主设置页面（需接入 MainView 导航）
 - [ ] Phase 15：SFI CA 管理（证书生成/导出/安装引导）
-- [ ] Phase 16：越狱版本支持（文档标注"暂时不做"）
+- [ ] Phase 16：越狱版本支持（文档标注"暂时不做"，sing-box 分支已完成 deploy/ios 部署文件和 deb 构建流水线）
 - [ ] Phase 19：真机测试（需 iOS 设备 + 开发者证书）
 - [ ] Phase 20：最终 Release 分支合并
 - [ ] Libbox.xcframework 重新编译（需 macOS + Xcode + gomobile，Linux 云电脑无法完成）
@@ -1437,5 +1493,11 @@ sing-box Core
 7. **全汉化**：所有 Swift 代码注释、变量名、错误提示、用户可见字符串均使用简体中文。
 
 8. **生产级代码**：完整错误处理、边界判断、线程安全（@Published、ObservableObject）、适配深色模式和动态字体。
+
+9. **Swift 侧与 Go 侧配置模型差异（需注意）**：
+   - Go 侧 `option.MITMMatchOptions` 仅支持 `domain` 和 `domain_suffix`，不支持 `domain_keyword` 和 `domain_regex`。
+   - Go 侧 `option.MITMRewriteRule` 仅支持 `domain_suffix`（数组）和 `path_prefix`（字符串），不支持 `domain`（数组），且 `path_prefix` 不是数组。
+   - Go 侧 `on_error` 注释定义为 `bypass`（默认）和 `block`，Swift 侧枚举为 `bypass` 和 `reject`，两者不匹配。
+   - **关键风险**：Swift 侧 `injectConfiguration` 方法会将 `path_prefix` 作为数组注入 JSON，但 Go 侧期望字符串类型，这会导致 `json.Unmarshal` 失败，MITM 服务无法启动。必须在 Swift 侧注入时取 `pathPrefix.first` 转为字符串。
 
 ---
