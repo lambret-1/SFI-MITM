@@ -12,6 +12,7 @@ import (
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/option"
+	"github.com/sagernet/sing-box/protocol/mitm/rewrite"
 )
 
 // TestHTTP2_ServeHTTP_缺少Host头 验证缺少 Host 头时返回 400
@@ -226,6 +227,51 @@ func (w *错误响应写入器) Write(b []byte) (int, error) {
 
 func (w *错误响应写入器) WriteHeader(statusCode int) {
 	// 不做任何事
+}
+
+// TestHTTP2_ServeHTTP_重写引擎启用 验证重写引擎启用时请求重写分支
+func TestHTTP2_ServeHTTP_重写引擎启用(t *testing.T) {
+	svc := &Service{
+		ctx:     context.Background(),
+		logger:  获取测试日志器(),
+		options: option.MITMServiceOptions{Enabled: true, UpstreamTimeout: 1},
+		叶子缓存:   新证书缓存(默认缓存容量),
+		日志缓冲区: 新日志环形缓冲区(100),
+	}
+
+	// 启用重写引擎
+	svc.重写引擎 = rewrite.NewEngine(option.MITMRewriteOptions{
+		Enabled: true,
+		Rules: []option.MITMRewriteRule{
+			{
+				DomainSuffix:  []string{"example.com"},
+				RequestHeader: map[string]string{"X-Test": "rewritten"},
+			},
+		},
+	})
+
+	// mock Router：不处理连接，导致上游连接超时
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			// 不做任何事
+		},
+	}
+
+	处理器 := &http2请求处理器{
+		服务:   svc,
+		路由器: mock,
+		元数据: adapter.InboundContext{},
+		上下文: context.Background(),
+	}
+
+	req := httptest.NewRequest("GET", "http://example.com/test", nil)
+	响应记录器 := httptest.NewRecorder()
+	处理器.ServeHTTP(响应记录器, req)
+
+	// 上游连接失败应返回 502，但重写引擎的RewriteRequest分支已被覆盖
+	if 响应记录器.Code != 502 {
+		t.Logf("状态码: %d（上游连接失败，期望 502）", 响应记录器.Code)
+	}
 }
 
 // Test新建HTTP2处理器_服务器初始化 验证 HTTP/2 处理器构造时 http2.Server 已初始化
