@@ -148,6 +148,11 @@ jobs:
           echo "=== 组装 .deb 安装包 ==="
           DEB_DIR="${{ env.DEPLOY_DIR }}/deb"
 
+          # 确保目录结构存在（git 不跟踪空目录，CI 检出时可能缺失）
+          mkdir -p "$DEB_DIR/var/jb/usr/bin"
+          mkdir -p "$DEB_DIR/var/jb/etc/sing-box"
+          mkdir -p "$DEB_DIR/var/jb/Library/LaunchDaemons"
+
           # 复制二进制（ldid 已签名）
           cp sing-box-ios "$DEB_DIR/var/jb/usr/bin/sing-box"
           chmod 755 "$DEB_DIR/var/jb/usr/bin/sing-box"
