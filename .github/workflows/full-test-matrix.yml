@@ -213,7 +213,7 @@ jobs:
           - goos: linux
             goarch: arm64
           - goos: linux
-            goarch: armv7
+            goarch: arm
           - goos: darwin
             goarch: arm64
           - goos: darwin
@@ -237,6 +237,10 @@ jobs:
       - name: 交叉编译 ${{ matrix.goos }}/${{ matrix.goarch }}
         run: |
           echo "=== 交叉编译：${{ matrix.goos }}/${{ matrix.goarch }} ==="
+          if [ "${{ matrix.goarch }}" = "arm" ]; then
+            export GOARM=7
+            echo "GOARM=7 (32位 ARMv7)"
+          fi
           CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
             go build -o singbox-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/sing-box
           ls -lh singbox-${{ matrix.goos }}-${{ matrix.goarch }}
@@ -343,7 +347,7 @@ jobs:
           - config_name: "DNS配置"
             config_json: |
               {"log": {"level": "info"},
-               "dns": {"servers": [{"address": "8.8.8.8"}, {"address": "1.1.1.1"}]},
+               "dns": {"servers": [{"type": "udp", "server": "8.8.8.8"}, {"type": "udp", "server": "1.1.1.1"}]},
                "inbounds": [{"type": "direct", "tag": "direct-in"}],
                "outbounds": [{"type": "direct", "tag": "direct"}]}
           - config_name: "路由规则"
