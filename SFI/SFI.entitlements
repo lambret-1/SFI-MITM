@@ -31,6 +31,11 @@
 	<array>
 		<string>packet-tunnel-provider</string>
 	</array>
+	<!-- VPN 配置管理权限（安装/保存 VPN 配置必需） -->
+	<key>com.apple.developer.networking.vpn.api</key>
+	<array>
+		<string>packet-tunnel</string>
+	</array>
 	<!-- 多播网络权限 -->
 	<key>com.apple.developer.networking.multicast</key>
 	<true/>
