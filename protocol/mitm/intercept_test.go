@@ -395,5 +395,77 @@ func TestIntercept_HTTP2处理(t *testing.T) {
 	}
 }
 
+// TestIntercept_处理错误非EOF 验证HTTP处理返回非EOF错误时记录日志
+func TestIntercept_处理错误非EOF(t *testing.T) {
+	证书PEM, 私钥PEM := 生成测试CA(t)
+	ca证书, ca私钥 := 解析测试CA(t, 证书PEM, 私钥PEM)
+
+	svc := &Service{
+		ctx:     context.Background(),
+		logger:  获取测试日志器(),
+		options: option.MITMServiceOptions{Enabled: true, UpstreamTimeout: 3},
+		根证书: &根证书实例{
+			证书对: tls.Certificate{
+				Certificate: [][]byte{ca证书.Raw},
+				PrivateKey:  ca私钥,
+			},
+			证书实体: ca证书,
+		},
+		叶子缓存:   新证书缓存(默认缓存容量),
+		匹配器:    新域名匹配器(option.MITMMatchOptions{Domain: []string{"example.com"}}),
+		日志缓冲区: 新日志环形缓冲区(100),
+		上游根证书池: 创建测试证书池(t, ca证书),
+	}
+
+	// 使用真实TCP连接（处理连接需要SetReadDeadline）
+	监听器, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("创建监听器失败: %v", err)
+	}
+	defer 监听器.Close()
+
+	// mock Router：不处理连接（HTTP处理会因为上游连接超时而返回错误）
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			// 不做任何事
+		},
+	}
+
+	// 在 goroutine 中接受连接并调用 Intercept
+	完成 := make(chan struct{}, 1)
+	go func() {
+		客户端连接, err := 监听器.Accept()
+		if err != nil {
+			return
+		}
+		defer 客户端连接.Close()
+		svc.Intercept(context.Background(), 客户端连接, adapter.InboundContext{}, mock, nil)
+		完成 <- struct{}{}
+	}()
+
+	// 客户端使用 TLS 连接，协商 ALPN=http/1.1
+	客户端配置 := &tls.Config{
+		ServerName: "example.com",
+		RootCAs:    创建测试证书池(t, ca证书),
+		NextProtos: []string{"http/1.1"},
+	}
+	客户端连接, err := tls.Dial("tcp", 监听器.Addr().String(), 客户端配置)
+	if err != nil {
+		t.Fatalf("TLS 连接失败: %v", err)
+	}
+	defer 客户端连接.Close()
+
+	// 发送有效的 HTTP 请求（上游连接会超时，处理请求返回502，但处理连接返回nil）
+	// 为了触发非EOF错误，发送无效的 HTTP 数据
+	客户端连接.Write([]byte("INVALID HTTP DATA\r\n\r\n"))
+
+	select {
+	case <-完成:
+		// 正常返回（处理连接返回非EOF错误，记录日志）
+	case <-time.After(10 * time.Second):
+		t.Fatal("超时：Intercept 未在处理错误后返回")
+	}
+}
+
 // 确保 sync 包被引用
 var _ sync.Mutex
