@@ -1018,31 +1018,56 @@ Jailbreak/
 sing-box/option/mitm.go
 ```
 
-新增：
+新增完整结构体（含全部字段）：
 
 ```go
 package option
 
-
+// MITMServiceOptions MITM 服务配置选项
 type MITMServiceOptions struct {
-
-    Enabled bool `json:"enabled"`
-
-    CA MITMCAOptions `json:"ca"`
-
-    Match MITMMatchOptions `json:"match"`
-
-    Rewrite MITMRewriteOptions `json:"rewrite"`
-
+    Enabled         bool                `json:"enabled,omitempty"`
+    CA              MITMCAOptions       `json:"ca,omitempty"`
+    Match           MITMMatchOptions    `json:"match,omitempty"`
+    Rewrite         MITMRewriteOptions  `json:"rewrite,omitempty"`
+    OnError         string              `json:"on_error,omitempty"`  // "bypass"(默认) / "block"
+    UpstreamTimeout int                 `json:"upstream_timeout,omitempty"` // 默认30秒
 }
 
-
+// MITMCAOptions MITM 根证书配置
 type MITMCAOptions struct {
-
     Certificate string `json:"certificate"`
+    PrivateKey  string `json:"private_key"`
+}
 
-    PrivateKey string `json:"private_key"`
+// MITMMatchOptions MITM 域名匹配规则
+type MITMMatchOptions struct {
+    Domain       []string `json:"domain,omitempty"`
+    DomainSuffix []string `json:"domain_suffix,omitempty"`
+}
 
+// MITMRewriteOptions HTTP 重写配置
+type MITMRewriteOptions struct {
+    Enabled     bool               `json:"enabled,omitempty"`
+    MaxBodySize int64              `json:"max_body_size,omitempty"` // 默认10MB
+    Rules       []MITMRewriteRule `json:"rules,omitempty"`
+}
+
+// MITMRewriteRule 单条 HTTP 重写规则
+type MITMRewriteRule struct {
+    DomainSuffix         []string              `json:"domain_suffix,omitempty"`
+    PathPrefix           string                `json:"path_prefix,omitempty"`
+    Method               []string              `json:"method,omitempty"`
+    RequestHeader        map[string]string     `json:"request_header,omitempty"`
+    RequestHeaderDelete  []string              `json:"request_header_delete,omitempty"`
+    ResponseHeader       map[string]string     `json:"response_header,omitempty"`
+    ResponseHeaderDelete []string              `json:"response_header_delete,omitempty"`
+    BodyReplace          []MITMBodyReplaceRule `json:"body_replace,omitempty"`
+}
+
+// MITMBodyReplaceRule Body 内容替换规则
+type MITMBodyReplaceRule struct {
+    Find    string `json:"find"`
+    Replace string `json:"replace"`
 }
 ```
 
@@ -1053,8 +1078,10 @@ type MITMCAOptions struct {
 文件：
 
 ```
-constant/constant.go
+constant/proxy.go
 ```
+
+> **注意**：TypeMITM 常量定义在 `constant/proxy.go`，不是 `constant/constant.go`。
 
 增加：
 
@@ -1071,36 +1098,38 @@ const (
 文件：
 
 ```
-include/service.go
+include/mitm.go
 ```
 
-增加：
+> **注意**：MITM 服务注册文件是 `include/mitm.go`，不是 `include/service.go`。
+
+完整内容：
 
 ```go
-mitm.RegisterService(
-    registry,
+package include
+
+import (
+    "github.com/sagernet/sing-box/adapter/service"
+    "github.com/sagernet/sing-box/protocol/mitm"
 )
+
+// registerMITMService 注册 MITM 服务到服务注册表
+func registerMITMService(registry *service.Registry) {
+    mitm.RegisterService(registry)
+}
 ```
 
 流程：
 
 ```
 JSON
-
  ↓
-
 services[]
-
  ↓
-
 type=mitm
-
  ↓
-
 MITMServiceOptions
-
  ↓
-
 NewService()
 ```
 
@@ -1114,33 +1143,32 @@ NewService()
 protocol/mitm/
 ```
 
-结构：
+结构（源代码文件，不含测试文件）：
 
 ```
 protocol/mitm/
-
-service.go
-
-interceptor.go
-
-clienthello.go
-
-tls.go
-
-certificate.go
-
-ca.go
-
-cache.go
-
-http1.go
-
-http2.go
-
-websocket.go
-
-rewrite/
+├── service.go          # Service 核心实现，双重注册（*Service + tun.Interceptor）
+├── interceptor.go      # TUN Interceptor 接口实现，ShouldIntercept/Intercept
+├── clienthello.go      # TLS ClientHello 解析与 SNI 提取
+├── tls.go              # TLS 终止与动态证书签发
+├── certificate.go      # 证书缓存与管理
+├── ca.go               # 根证书加载与叶子证书签发
+├── cache.go            # 会话缓存（TLS Session Ticket）
+├── log_buffer.go       # MITM 日志环形缓冲区
+├── matcher.go          # 域名匹配器（domain + domain_suffix）
+├── router.go           # MITM 内部路由（解密后流量转发）
+├── upstream.go         # 上游连接管理（与目标服务器通信）
+├── http1.go            # HTTP/1.1 处理与重写
+├── http2.go            # HTTP/2 处理与重写
+├── websocket.go        # WebSocket 透传处理
+└── rewrite/            # HTTP 重写引擎
+    ├── engine.go       # 重写引擎核心
+    ├── matcher.go      # 重写规则匹配器
+    ├── rule.go         # 重写规则定义
+    └── body.go         # Body 替换（含 gzip/br/zstd 解压重压缩）
 ```
+
+> **测试文件**：目录下另有 20+ 个 `*_test.go` 测试文件，覆盖率 98%，详见 sing-box 分支 `test/mitm/` 独立测试目录。
 
 ---
 
