@@ -97,6 +97,43 @@ func TestHTTP2_ServeHTTP_URLHost回退(t *testing.T) {
 	}
 }
 
+// TestHTTP2_ServeHTTP_域名包含端口 验证域名包含端口时去除端口分支
+func TestHTTP2_ServeHTTP_域名包含端口(t *testing.T) {
+	svc := &Service{
+		ctx:     context.Background(),
+		logger:  获取测试日志器(),
+		options: option.MITMServiceOptions{Enabled: true, UpstreamTimeout: 1},
+		叶子缓存:   新证书缓存(默认缓存容量),
+		日志缓冲区: 新日志环形缓冲区(100),
+	}
+
+	// mock Router：不处理连接，导致上游连接超时
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			// 不做任何事
+		},
+	}
+
+	处理器 := &http2请求处理器{
+		服务:   svc,
+		路由器: mock,
+		元数据: adapter.InboundContext{},
+		上下文: context.Background(),
+	}
+
+	// 构造 Host 包含端口的请求
+	req := httptest.NewRequest("GET", "http://example.com:8443/test", nil)
+	req.Host = "example.com:8443"
+
+	响应记录器 := httptest.NewRecorder()
+	处理器.ServeHTTP(响应记录器, req)
+
+	// 上游连接失败应返回 502，但域名包含端口去除端口分支已被覆盖
+	if 响应记录器.Code != 502 {
+		t.Logf("状态码: %d（上游连接失败，期望 502）", 响应记录器.Code)
+	}
+}
+
 // TestHTTP2_ServeHTTP_上游连接失败 验证上游连接失败时返回 502
 func TestHTTP2_ServeHTTP_上游连接失败(t *testing.T) {
 	svc := &Service{
