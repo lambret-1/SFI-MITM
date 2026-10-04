@@ -19,7 +19,6 @@ import (
 	"github.com/sagernet/sing-box/experimental/deprecated"
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/option"
-	"github.com/sagernet/sing-box/protocol/mitm"
 	"github.com/sagernet/sing-box/service/oomkiller"
 	"github.com/sagernet/sing-tun"
 	"github.com/sagernet/sing-tun/gtcpip/header"
@@ -637,10 +636,11 @@ func (t *Inbound) NewConnectionEx(ctx context.Context, conn net.Conn, source M.S
 		t.logger.InfoContext(ctx, "inbound connection from ", metadata.Source)
 		t.logger.InfoContext(ctx, "inbound connection to ", metadata.Destination)
 	}
-	// MITM 拦截：判断是否需要 HTTPS 解密
-	mitm服务 := mitm.FromContext(ctx)
-	if mitm服务 != nil && mitm服务.ShouldIntercept(metadata) {
-		mitm服务.Intercept(ctx, conn, metadata, t.router, onClose)
+	// 连接拦截：通过 Interceptor 接口判断是否需要拦截（如 MITM HTTPS 解密）
+	// TUN 层不直接依赖 MITM 实现，通过 service 上下文获取已注册的拦截器
+	拦截器 := service.FromContext[Interceptor](ctx)
+	if 拦截器 != nil && 拦截器.ShouldIntercept(metadata) {
+		拦截器.Intercept(ctx, conn, metadata, t.router, onClose)
 		return
 	}
 	t.router.RouteConnectionEx(ctx, conn, metadata, onClose)
@@ -687,10 +687,10 @@ func (t *autoRedirectHandler) NewConnectionEx(ctx context.Context, conn net.Conn
 		t.logger.InfoContext(ctx, "inbound redirect connection from ", metadata.Source)
 		t.logger.InfoContext(ctx, "inbound connection to ", metadata.Destination)
 	}
-	// MITM 拦截：判断是否需要 HTTPS 解密
-	mitm服务 := mitm.FromContext(ctx)
-	if mitm服务 != nil && mitm服务.ShouldIntercept(metadata) {
-		mitm服务.Intercept(ctx, conn, metadata, t.router, onClose)
+	// 连接拦截：通过 Interceptor 接口判断是否需要拦截（如 MITM HTTPS 解密）
+	拦截器 := service.FromContext[Interceptor](ctx)
+	if 拦截器 != nil && 拦截器.ShouldIntercept(metadata) {
+		拦截器.Intercept(ctx, conn, metadata, (*Inbound)(t).router, onClose)
 		return
 	}
 	t.router.RouteConnectionEx(ctx, conn, metadata, onClose)

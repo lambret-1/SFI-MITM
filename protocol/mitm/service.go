@@ -11,6 +11,7 @@ import (
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/option"
 	"github.com/sagernet/sing-box/protocol/mitm/rewrite"
+	"github.com/sagernet/sing-box/protocol/tun"
 	"github.com/sagernet/sing/service"
 )
 
@@ -101,6 +102,9 @@ func NewService(ctx context.Context, logger log.ContextLogger, tag string, optio
 
 	// 将自身注册到上下文，供 TUN 拦截层获取
 	service.MustRegister[*Service](ctx, svc)
+	// 同时注册为 tun.Interceptor 接口，实现 TUN 层与 MITM 实现解耦
+	// TUN 通过 service.FromContext[tun.Interceptor] 获取，不直接 import mitm 包
+	service.MustRegister[tun.Interceptor](ctx, svc)
 
 	logger.Info("mitm: 服务初始化完成，根证书已加载")
 	if options.Rewrite.Enabled {
@@ -182,6 +186,11 @@ func (s *Service) IsCAInstalled() bool {
 // GetActiveConnections 导出方法：返回当前活跃 MITM 连接数
 func (s *Service) GetActiveConnections() int32 {
 	return s.获取活跃连接数()
+}
+
+// GetUpstreamTimeout 导出方法：返回上游连接超时（秒）
+func (s *Service) GetUpstreamTimeout() int {
+	return s.获取上游超时()
 }
 
 // 增加连接 原子增加活跃连接计数，在拦截开始时调用

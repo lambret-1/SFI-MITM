@@ -272,6 +272,13 @@ libbox-apple:
 	go build ./...
 	go run ./cmd/internal/build_libbox -target apple
 
+# libbox-mitm 构建 MITM 版本的 Libbox.framework（iOS 真机专用）
+# 对应开发文档 Phase 17：Build 系统。
+# MITM 功能运行于 iOS Network Extension，仅需 ios-arm64 真机切片。
+# 构建流程：go build → gomobile bind → framework → 供 SFI Xcode 链接
+# 等价于 libbox-ios，作为 MITM 专项构建目标提供语义化入口
+libbox-mitm: libbox-ios
+
 lib_windows:
 	$(SING_FFI) generate --config $(LIBBOX_FFI_CONFIG) --platform-type csharp
 
