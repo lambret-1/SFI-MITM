@@ -424,3 +424,190 @@ func TestServeHTTP_完整HTTP2转发(t *testing.T) {
 	}
 }
 
+// ========== 处理WebSocket 完整流程测试 ==========
+
+// Test处理WebSocket_完整转发_真实TCP 验证使用真实TCP连接的WebSocket完整流程
+func Test处理WebSocket_完整转发_真实TCP(t *testing.T) {
+	svc, ca证书, ca私钥 := 创建完整TLS服务(t)
+	上游证书 := 签发上游测试证书(t, ca证书, ca私钥, "example.com")
+
+	// mock Router：建立上游 TLS 服务器，处理 WebSocket 升级并回显
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			tls配置 := &tls.Config{
+				Certificates: []tls.Certificate{上游证书},
+				NextProtos:   []string{"http/1.1"},
+			}
+			tls服务端 := tls.Server(conn, tls配置)
+			defer tls服务端.Close()
+			if err := tls服务端.Handshake(); err != nil {
+				return
+			}
+			读取器 := bufio.NewReader(tls服务端)
+			_, err := http.ReadRequest(读取器)
+			if err != nil {
+				return
+			}
+			tls服务端.Write([]byte("HTTP/1.1 101 Switching Protocols\r\n" +
+				"Upgrade: websocket\r\n" +
+				"Connection: Upgrade\r\n\r\n"))
+			缓冲区 := make([]byte, 4096)
+			for {
+				n, err := tls服务端.Read(缓冲区)
+				if err != nil {
+					return
+				}
+				tls服务端.Write(缓冲区[:n])
+			}
+		},
+	}
+
+	监听器, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("创建监听器失败: %v", err)
+	}
+	defer 监听器.Close()
+
+	处理器 := 新建HTTP1处理器(svc, mock, adapter.InboundContext{})
+
+	go func() {
+		客户端连接, err := 监听器.Accept()
+		if err != nil {
+			return
+		}
+		defer 客户端连接.Close()
+		req := &http.Request{
+			Method: "GET",
+			Host:   "example.com",
+			URL:    &url.URL{Path: "/ws", Host: "example.com"},
+			Header: make(http.Header),
+		}
+		req.Header.Set("Upgrade", "websocket")
+		req.Header.Set("Connection", "Upgrade")
+		处理器.处理WebSocket(context.Background(), 客户端连接, bufio.NewReader(客户端连接), req)
+	}()
+
+	客户端连接, err := net.Dial("tcp", 监听器.Addr().String())
+	if err != nil {
+		t.Fatalf("连接失败: %v", err)
+	}
+	defer 客户端连接.Close()
+
+	响应缓冲区 := make([]byte, 4096)
+	n, err := 客户端连接.Read(响应缓冲区)
+	if err != nil {
+		t.Fatalf("读取响应失败: %v", err)
+	}
+	if !strings.Contains(string(响应缓冲区[:n]), "101 Switching Protocols") {
+		t.Errorf("期望 101 响应，实际: %s", string(响应缓冲区[:n]))
+	}
+
+	测试数据 := []byte("test-websocket-data")
+	客户端连接.Write(测试数据)
+
+	n, err = 客户端连接.Read(响应缓冲区)
+	if err != nil {
+		t.Fatalf("读取回显失败: %v", err)
+	}
+	if string(响应缓冲区[:n]) != string(测试数据) {
+		t.Errorf("期望回显 '%s'，实际 '%s'", 测试数据, string(响应缓冲区[:n]))
+	}
+}
+
+// ========== Intercept 域名匹配完整流程测试 ==========
+
+// TestIntercept_域名匹配_完整TLS转发 验证Intercept域名匹配时终止TLS并转发HTTP请求
+func TestIntercept_域名匹配_完整TLS转发(t *testing.T) {
+	svc, ca证书, ca私钥 := 创建完整TLS服务(t)
+	上游证书 := 签发上游测试证书(t, ca证书, ca私钥, "example.com")
+
+	// mock Router：建立上游 TLS 服务器，处理 HTTP 请求后关闭连接
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			tls配置 := &tls.Config{
+				Certificates: []tls.Certificate{上游证书},
+				NextProtos:   []string{"http/1.1"},
+			}
+			tls服务端 := tls.Server(conn, tls配置)
+			defer tls服务端.Close()
+			if err := tls服务端.Handshake(); err != nil {
+				return
+			}
+			读取器 := bufio.NewReader(tls服务端)
+			req, err := http.ReadRequest(读取器)
+			if err != nil {
+				return
+			}
+			resp := &http.Response{
+				StatusCode: 200,
+				Proto:      "HTTP/1.1",
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader("MITM upstream response")),
+			}
+			resp.Header.Set("Content-Length", "21")
+			resp.Header.Set("Connection", "close")
+			resp.Write(tls服务端)
+			req.Body.Close()
+			// 关闭上游连接，让双向转发返回
+			tls服务端.CloseWrite()
+		},
+	}
+
+	// 创建真实的 TCP 监听器作为 MITM 服务端
+	监听器, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("创建监听器失败: %v", err)
+	}
+	defer 监听器.Close()
+
+	// 在 goroutine 中接受连接并调用 Intercept
+	go func() {
+		客户端连接, err := 监听器.Accept()
+		if err != nil {
+			return
+		}
+		defer 客户端连接.Close()
+		svc.Intercept(context.Background(), 客户端连接, adapter.InboundContext{}, mock, nil)
+	}()
+
+	// 客户端使用 TLS 连接到 MITM 服务端
+	客户端配置 := &tls.Config{
+		ServerName: "example.com",
+		RootCAs:    创建测试证书池(t, ca证书),
+		NextProtos: []string{"http/1.1"},
+	}
+	客户端连接, err := tls.Dial("tcp", 监听器.Addr().String(), 客户端配置)
+	if err != nil {
+		t.Fatalf("TLS 连接失败: %v", err)
+	}
+	defer 客户端连接.Close()
+
+	// 发送 HTTP 请求
+	请求 := "GET /test HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n"
+	客户端连接.Write([]byte(请求))
+
+	// 读取响应
+	响应缓冲区 := make([]byte, 4096)
+	n, err := 客户端连接.Read(响应缓冲区)
+	if err != nil {
+		t.Fatalf("读取响应失败: %v", err)
+	}
+	响应文本 := string(响应缓冲区[:n])
+	if !strings.Contains(响应文本, "200 OK") {
+		t.Errorf("期望 200 响应，实际: %s", 响应文本)
+	}
+	if !strings.Contains(响应文本, "MITM upstream response") {
+		t.Errorf("期望响应包含上游响应体，实际: %s", 响应文本)
+	}
+	// 关闭客户端连接，让 Intercept 返回
+	客户端连接.Close()
+	time.Sleep(200 * time.Millisecond)
+
+	// 打印日志缓冲区内容，用于调试
+	日志条目 := svc.日志缓冲区.获取全部()
+	t.Logf("MITM 日志条目数: %d", len(日志条目))
+	for _, 条目 := range 日志条目 {
+		t.Logf("  Level=%d Message=%s", 条目.Level, 条目.Message)
+	}
+}
+

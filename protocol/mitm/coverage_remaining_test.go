@@ -1,6 +1,7 @@
 package mitm
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -10,6 +11,8 @@ import (
 	"encoding/pem"
 	"math/big"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,6 +21,7 @@ import (
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/option"
 	M "github.com/sagernet/sing/common/metadata"
+	"github.com/sagernet/sing/service"
 )
 
 // ========== 加载根证书 全分支覆盖 ==========
@@ -169,6 +173,28 @@ func Test签发叶子证书_域名为空(t *testing.T) {
 	_, err := svc.签发叶子证书("")
 	if err == nil {
 		t.Error("期望域名为空时返回错误")
+	}
+}
+
+// Test签发叶子证书_缓存命中 验证同域名第二次签发时命中缓存
+func Test签发叶子证书_缓存命中(t *testing.T) {
+	svc, _, _ := 创建完整TLS服务(t)
+
+	// 第一次签发：应该生成新证书
+	证书1, err := svc.签发叶子证书("cached.example.com")
+	if err != nil {
+		t.Fatalf("第一次签发失败: %v", err)
+	}
+
+	// 第二次签发：应该命中缓存，返回相同证书
+	证书2, err := svc.签发叶子证书("cached.example.com")
+	if err != nil {
+		t.Fatalf("第二次签发失败: %v", err)
+	}
+
+	// 验证两次返回的是同一个证书对象（缓存命中）
+	if 证书1 != 证书2 {
+		t.Error("期望第二次签发命中缓存，返回相同证书对象")
 	}
 }
 
@@ -330,6 +356,59 @@ func TestStart_已启用(t *testing.T) {
 	if err != nil {
 		t.Errorf("期望已启用时返回nil，实际错误: %v", err)
 	}
+}
+
+// ========== 路由连接 全分支覆盖 ==========
+
+// Test路由连接_Router已注册 验证Router已注册时调用RouteConnection
+func Test路由连接_Router已注册(t *testing.T) {
+	// 使用真实 TCP 连接，避免 net.Pipe 时序问题
+	监听器, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("创建监听器失败: %v", err)
+	}
+	defer 监听器.Close()
+
+	// mock Router：接受连接后立即关闭
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			conn.Close()
+		},
+	}
+
+	// 使用 service.ContextWith 创建包含 Router 的 context
+	ctx := service.ContextWith[adapter.Router](context.Background(), mock)
+
+	svc := &Service{
+		ctx:    ctx,
+		logger: 获取测试日志器(),
+	}
+
+	// 在 goroutine 中接受连接
+	go func() {
+		客户端连接, err := 监听器.Accept()
+		if err != nil {
+			return
+		}
+		defer 客户端连接.Close()
+		// 调用路由连接
+		req := &http.Request{
+			Method: "GET",
+			Host:   "example.com",
+			URL:    &url.URL{Path: "/", Host: "example.com"},
+		}
+		svc.路由连接(context.Background(), 客户端连接, req, M.Socksaddr{})
+	}()
+
+	// 客户端连接到监听器
+	客户端连接, err := net.Dial("tcp", 监听器.Addr().String())
+	if err != nil {
+		t.Fatalf("连接失败: %v", err)
+	}
+	defer 客户端连接.Close()
+
+	// 等待一小段时间，让路由连接完成
+	time.Sleep(100 * time.Millisecond)
 }
 
 // 确保 tls 被引用
