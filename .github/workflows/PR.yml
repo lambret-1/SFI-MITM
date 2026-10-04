@@ -18,6 +18,7 @@ permissions:
 jobs:
   # ============================================================
   # 任务 1：快速静态检查
+  # 所有步骤均使用 if: always()，保证不会中途退出
   # ============================================================
   quick-check:
     name: 静态检查
@@ -57,13 +58,11 @@ jobs:
             fi
           done < <(find . -name 'Info.plist' -not -path './.git/*' -print0)
           if [ "$FOUND" -eq 0 ]; then
-            echo "⚠️ 未找到 Info.plist"
             echo "⚠️ 检查 Info.plist 语法 | 未找到文件" >> quick_summary.log
           elif [ -n "$ERRORS" ]; then
             echo "❌ 检查 Info.plist 语法 | 语法错误: $ERRORS" >> quick_summary.log
             exit 1
           else
-            echo "✅ 所有 Info.plist 合法"
             echo "✅ 检查 Info.plist 语法 | 所有文件合法" >> quick_summary.log
           fi
 
@@ -78,7 +77,6 @@ jobs:
             echo "❌ 检查意外提交的文件 | 发现不应提交的文件" >> quick_summary.log
             exit 1
           fi
-          echo "✅ 无意外文件"
           echo "✅ 检查意外提交的文件 | 无异常文件" >> quick_summary.log
 
       - name: 检查 pbxproj 有效性
@@ -127,7 +125,6 @@ jobs:
             echo "❌ 检查 entitlements | 包含调试权限 get-task-allow=true" >> quick_summary.log
             exit 1
           fi
-          echo "✅ entitlements 检查通过"
           echo "✅ 检查 entitlements | 权限配置正确" >> quick_summary.log
 
       - name: 检查大文件
@@ -140,7 +137,6 @@ jobs:
             echo "❌ 检查大文件 | 发现超过 5MB 的文件" >> quick_summary.log
             exit 1
           fi
-          echo "✅ 无异常大文件"
           echo "✅ 检查大文件 | 无超过 5MB 的文件" >> quick_summary.log
 
       - name: 检查硬编码密钥
@@ -154,7 +150,6 @@ jobs:
             echo "❌ 检查硬编码密钥 | 发现疑似密钥" >> quick_summary.log
             exit 1
           fi
-          echo "✅ 无硬编码密钥"
           echo "✅ 检查硬编码密钥 | 无硬编码密钥" >> quick_summary.log
 
       - name: 检查空白错误
@@ -171,7 +166,6 @@ jobs:
             echo "❌ 检查空白错误 | 存在行尾空格或 Tab 混用" >> quick_summary.log
             exit 1
           fi
-          echo "✅ 无空白错误"
           echo "✅ 检查空白错误 | 无空白错误" >> quick_summary.log
 
       - name: 检查文件末尾换行（警告）
@@ -181,11 +175,8 @@ jobs:
             [ -s "$f" ] && [ "$(tail -c1 "$f" | wc -l)" -eq 0 ] && echo "$f"
           done)
           if [ -n "$FOUND" ]; then
-            echo "⚠️ 以下文件末尾缺少换行："
-            echo "$FOUND"
             echo "⚠️ 检查末尾换行 | 部分文件缺少换行（不阻塞）" >> quick_summary.log
           else
-            echo "✅ 所有文件末尾有换行"
             echo "✅ 检查末尾换行 | 所有文件末尾有换行" >> quick_summary.log
           fi
 
@@ -194,11 +185,8 @@ jobs:
         run: |
           DUP=$(git ls-files '*.swift' | xargs -n1 basename 2>/dev/null | sort | uniq -d || true)
           if [ -n "$DUP" ]; then
-            echo "⚠️ 存在重复文件名："
-            echo "$DUP"
             echo "⚠️ 检查重复文件名 | 存在重复文件名（不阻塞）" >> quick_summary.log
           else
-            echo "✅ 无重复文件名"
             echo "✅ 检查重复文件名 | 无重复文件名" >> quick_summary.log
           fi
 
@@ -433,8 +421,16 @@ jobs:
           EOF
 
       - name: 配置 Git 并推送报告
-        if: github.event_name == 'push'
+        # 仅在 push 或手动触发时执行，PR 事件跳过以防权限报错
+        if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         run: |
+          echo "=== 准备推送报告 ==="
+          
+          if [ ! -f log/README.md ]; then
+            echo "❌ 报告文件未生成，跳过推送"
+            exit 0
+          fi
+
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
@@ -442,11 +438,33 @@ jobs:
           
           if git diff --cached --quiet; then
             echo "✅ log/README.md 内容无变化，无需提交"
-          else
-            git commit -m "docs: 自动更新代码检查报告 [skip ci]"
-            git push origin HEAD:${{ github.ref_name }}
-            echo "✅ 报告已成功推送到仓库"
+            exit 0
           fi
+
+          git commit -m "docs: 自动更新代码检查报告 [skip ci]"
+          
+          echo "=== 拉取远程最新代码 ==="
+          git pull --rebase origin ${{ github.ref_name }} || {
+            echo "⚠️ git pull --rebase 发生冲突，尝试强制使用本地报告覆盖..."
+            git rebase --abort 2>/dev/null || true
+            git fetch origin ${{ github.ref_name }}
+            git reset --soft origin/${{ github.ref_name }}
+            git add log/README.md
+            git commit -m "docs: 自动更新代码检查报告 [skip ci]" || true
+          }
+          
+          echo "=== 推送报告 ==="
+          if ! git push origin HEAD:${{ github.ref_name }}; then
+            echo "⚠️ 普通推送失败，尝试强制推送..."
+            git push -f origin HEAD:${{ github.ref_name }} || {
+              echo "❌ 推送失败！请检查以下可能原因："
+              echo "1. 仓库 Settings -> Actions -> General -> Workflow permissions 是否设为 Read and write"
+              echo "2. 分支是否有保护规则（Settings -> Branches）"
+              echo "3. 是否有冲突需要手动解决"
+              exit 1
+            }
+          fi
+          echo "✅ 报告已成功推送到仓库"
 
       - name: 上传最终报告为 Artifact
         if: always()
