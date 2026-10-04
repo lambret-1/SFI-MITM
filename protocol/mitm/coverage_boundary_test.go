@@ -283,7 +283,7 @@ func Test建立上游TLSWithContext_握手失败(t *testing.T) {
 	服务端端.Close()
 
 	ctx := context.Background()
-	_, err := 建立上游TLSWithContext(ctx, 客户端端, "example.com", []string{"http/1.1"})
+	_, err := 建立上游TLSWithContext(ctx, 客户端端, "example.com", []string{"http/1.1"}, nil)
 	if err == nil {
 		t.Error("期望握手失败返回错误")
 	}

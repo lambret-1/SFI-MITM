@@ -50,7 +50,7 @@ func Test建立上游TLSWithContext_成功握手(t *testing.T) {
 	// 由于测试 CA 是自签名的，需要配置根证书池，但建立上游TLSWithContext
 	// 内部使用 InsecureSkipVerify=false 且不接受自定义根证书池，
 	// 所以这里测试握手失败场景更合适
-	_, err := 建立上游TLSWithContext(握手上下文, 客户端端, "test.example.com", []string{"http/1.1"})
+	_, err := 建立上游TLSWithContext(握手上下文, 客户端端, "test.example.com", []string{"http/1.1"}, nil)
 	if err == nil {
 		t.Error("期望自签名证书被拒绝（InsecureSkipVerify=false）")
 	}
@@ -66,7 +66,7 @@ func Test建立上游TLSWithContext_超时(t *testing.T) {
 	握手上下文, 取消 := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer 取消()
 
-	_, err := 建立上游TLSWithContext(握手上下文, 客户端端, "test.example.com", []string{"http/1.1"})
+	_, err := 建立上游TLSWithContext(握手上下文, 客户端端, "test.example.com", []string{"http/1.1"}, nil)
 	if err == nil {
 		t.Error("期望握手超时返回错误")
 	}
@@ -100,7 +100,7 @@ func Test建立上游TLSWithContext_ALPN协商(t *testing.T) {
 	// 但我们可以验证函数确实发起了 TLS 握手（错误信息包含 TLS 相关内容）
 	握手上下文, 取消 := context.WithTimeout(context.Background(), 5*time.Second)
 	defer 取消()
-	_, err := 建立上游TLSWithContext(握手上下文, 客户端端, "test.example.com", []string{"h2", "http/1.1"})
+	_, err := 建立上游TLSWithContext(握手上下文, 客户端端, "test.example.com", []string{"h2", "http/1.1"}, nil)
 	if err == nil {
 		t.Error("期望自签名证书验证失败")
 	}

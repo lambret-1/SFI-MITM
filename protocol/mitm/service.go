@@ -2,6 +2,7 @@ package mitm
 
 import (
 	"context"
+	"crypto/x509"
 	"sync"
 	"sync/atomic"
 
@@ -58,6 +59,11 @@ type Service struct {
 	// 日志缓冲区 内存环形缓冲区，保存关键 MITM 事件日志
 	// 无论 MITM 是否启用都会初始化；未启用时缓冲区保持为空。
 	日志缓冲区 *日志环形缓冲区
+
+	// 上游根证书池 用于验证上游服务器 TLS 证书的根证书池
+	// 默认为 nil（使用系统信任库）；测试时可注入自定义 CA 证书池。
+	// 此字段不对外暴露，仅用于测试可注入性，生产环境保持 nil。
+	上游根证书池 *x509.CertPool
 }
 
 // NewService 构造 MITM 服务

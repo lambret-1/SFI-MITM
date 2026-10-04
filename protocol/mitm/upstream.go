@@ -3,6 +3,7 @@ package mitm
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"net"
 	"time"
 
@@ -57,16 +58,21 @@ func (s *Service) 建立上游连接(ctx context.Context, 路由器 adapter.Rout
 	defer 取消()
 
 	// 在客户端一端做 TLS 握手
-	return 建立上游TLSWithContext(握手上下文, 上游客户端, 域名, alpn)
+	return 建立上游TLSWithContext(握手上下文, 上游客户端, 域名, alpn, s.上游根证书池)
 }
 
 // 建立上游TLSWithContext 在已建立的 TCP 连接上与上游服务器完成 TLS 握手（带超时）
-func 建立上游TLSWithContext(ctx context.Context, 连接 net.Conn, 域名 string, alpn []string) (*tls.Conn, error) {
+//
+// 参数：
+//   - 根证书池：用于验证上游服务器证书的根证书池，传 nil 使用系统信任库。
+//     生产环境保持 nil；测试时可注入自定义 CA 证书池以支持自签名证书。
+func 建立上游TLSWithContext(ctx context.Context, 连接 net.Conn, 域名 string, alpn []string, 根证书池 *x509.CertPool) (*tls.Conn, error) {
 	tls配置 := &tls.Config{
 		ServerName:         域名,
 		NextProtos:         alpn,
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: false,
+		RootCAs:            根证书池,
 	}
 	tls连接 := tls.Client(连接, tls配置)
 
