@@ -26,42 +26,602 @@
 
 ---
 
-# 一、源码仓库结构 
+# 《SFI 接入 sing-box 内核完整指南》
 
-工作区：
-
-```
-workspace/
-
-├── sing-box/
-│
-│   ├── option/
-│   ├── protocol/
-│   │    └── mitm/
-│   ├── service/
-│   ├── experimental/libbox/
-│   └── cmd/
-│
-│
-└── sing-box-for-apple/
-    │
-    ├── SFI/
-    │
-    ├── Extension/
-    │
-    ├── Library/
-    │
-    ├── Jailbreak/
-    │
-    └── Frameworks/
-         └── Libbox.xcframework
-```
-
-`sng-box-for-apple` 当前包含 SFI、Extension、Jailbreak 等 Apple 平台组件。
+> 本文档详细说明 **SFI（sing-box for iOS）客户端体系** 如何通过 **Libbox.framework** 接入 **sing-box 内核**，涵盖整体架构、Libbox 核心 API、配置管理、服务生命周期、TUN 接入、PlatformInterface 接口、CommandServerHandler 接口、MITM 专项接入、Xcode 配置、Build 流程以及完整的 API 清单。
+>
+> 整体架构：
+>
+> ```
+> SFI UI（SwiftUI）
+>    |
+>    |  配置管理 / 状态查询 / 日志展示
+>    ▼
+> CommandClient（gRPC 客户端）
+>    |
+>    |  XPC / 本地端口通信
+>    ▼
+> Network Extension（PacketTunnelProvider）
+>    |
+>    |  LibboxSetup / LibboxNewCommandServer / startOrReloadService
+>    ▼
+> Libbox.framework（gomobile bind 桥接）
+>    |
+>    |  Go 函数 / 接口跨语言调用
+>    ▼
+> sing-box Core（Go）
+>    |
+>    +-- TUN Inbound（虚拟网卡）
+>    +-- DNS（域名解析）
+>    +-- Router（路由规则）
+>    +-- Outbound（代理出站：vmess/vless/trojan/shadowsocks...）
+>    +-- Services（服务：api/clashapi/mitm/...）
+>    +-- MITM Service（HTTPS 中间人攻击）
+>    +-- Rewrite Engine（HTTP 重写）
+>    +-- Certificate Authority（动态证书签发）
+>    +-- TLS Termination（TLS 终止）
+>    +-- HTTP/1.1 + HTTP/2 + WebSocket 引擎
+>    +-- Service Registry（服务注册表）
+>    +-- TUN Interceptor（TUN 连接拦截器接口）
+>    +-- PlatformInterface（平台接口回调）
+>    +-- CommandServer（gRPC 命令服务器）
+>    +-- Log Ring Buffer（日志环形缓冲区）
+>    +-- OOM Killer（内存溢出保护）
+>    +-- Power Report（功耗报告）
+>    +-- Clash API（外部控制 API）
+>    +-- V2Ray API（统计 API）
+> ```
+>
+> SFI 属于 sing-box Apple 客户端体系，负责配置管理、TUN/VPN Extension 和 libbox 集成。本文档同时覆盖通用内核接入和 MITM 专项接入两部分内容。
 
 ---
 
-# 二、整体修改范围
+# 一、整体架构与内核接入流程
+
+## 1.1 三层架构
+
+SFI 接入 sing-box 内核采用三层架构：
+
+| 层级 | 技术 | 职责 | 运行进程 |
+|------|------|------|----------|
+| **UI 层** | SwiftUI + CommandClient | 配置编辑、状态展示、日志查看、连接管理 | 主 App 进程 |
+| **Extension 层** | Network Extension + Libbox | VPN 隧道管理、TUN 接口提供、内核生命周期管理 | Network Extension 进程 |
+| **Core 层** | sing-box Go 内核 | 协议解析、路由转发、TLS 终止、MITM 解密、出站代理 | Network Extension 进程（内嵌） |
+
+## 1.2 内核启动完整流程
+
+```
+用户点击「连接」按钮
+    ↓
+SFI UI 调用 NEVPNManager.startVPNTunnel()
+    ↓
+系统启动 Network Extension（PacketTunnelProvider）
+    ↓
+PacketTunnelProvider.startTunnel(options:) 被调用
+    ↓
+1. 解析启动选项（configContent 等）
+2. 持久化启动选项到快照文件
+3. 创建 LibboxSetupOptions（BasePath/WorkingPath/TempPath...）
+4. 调用 LibboxSetup(options, &error) 初始化 libbox
+5. 创建 ExtensionPlatformInterface（实现 PlatformInterface 接口）
+6. 调用 LibboxNewCommandServer(handler, platformInterface, &error)
+7. 调用 commandServer.start() 启动 gRPC 命令服务器
+8. 调用 commandServer.startOrReloadService(configContent, options) 启动 sing-box 服务
+    ↓
+sing-box 内核启动完成
+    ↓
+TUN 接口创建 → 路由规则加载 → 出站连接建立 → 流量开始转发
+```
+
+## 1.3 UI 与 Extension 通信
+
+主 App 与 Network Extension 通过 gRPC 通信：
+
+```
+SFI UI（CommandClient）
+    ↓  gRPC 调用（通过 XPC 或本地端口）
+CommandServer（运行在 Extension 中）
+    ↓  调用 sing-box 内核 API
+sing-box Core
+```
+
+**CommandClient 主要功能：**
+- 查询服务状态（`status`）
+- 查询连接列表（`connections`）
+- 查询/切换出站组（`group`）
+- 查询日志（`logs`）
+- 切换模式（`mode`）
+- 网络质量测试（`network_quality`）
+- STUN 测试（`stun`）
+- Tailscale 管理（`tailscale`）
+- USB/IP 共享（`usbip`）
+- OpenConnect/OpenVPN 认证（`openconnect`/`openvpn`）
+
+---
+
+# 二、Libbox 核心 API
+
+Libbox 是 sing-box 内核的跨语言桥接层，通过 `gomobile bind` 将 Go 代码编译为 `Libbox.xcframework`，供 Swift/Objective-C 直接调用。
+
+## 2.1 初始化 API
+
+### LibboxSetup — 初始化 libbox 服务
+
+**Go 侧定义**（`experimental/libbox/setup.go`）：
+```go
+func Setup(options *SetupOptions) error
+```
+
+**Swift 调用**：
+```swift
+let options = LibboxSetupOptions()
+options.basePath = basePath
+options.workingPath = workingPath
+options.tempPath = tempPath
+options.appVersion = appVersion
+options.appMarketingVersion = appMarketingVersion
+options.logMaxLines = 1000
+options.debug = false
+
+var setupError: NSError?
+LibboxSetup(options, &setupError)
+if let setupError {
+    throw setupError
+}
+```
+
+### SetupOptions — 初始化选项结构体
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `basePath` | `String` | 基础路径（配置文件、数据库存储目录） |
+| `workingPath` | `String` | 工作路径（运行时文件、缓存目录） |
+| `tempPath` | `String` | 临时路径（临时文件目录） |
+| `fixAndroidStack` | `Bool` | 修复 Android 栈（iOS 不使用） |
+| `commandServerListenPort` | `Int32` | CommandServer 监听端口（0=自动分配） |
+| `commandServerSecret` | `String` | CommandServer 认证密钥 |
+| `logMaxLines` | `Int` | 日志环形缓冲区最大行数 |
+| `debug` | `Bool` | 是否启用调试模式 |
+| `crashReportSource` | `String` | 崩溃报告来源标识 |
+| `appVersion` | `String` | App 版本号（内部版本） |
+| `appMarketingVersion` | `String` | App 营销版本号（对外显示） |
+| `oomKillerEnabled` | `Bool` | 是否启用 OOM Killer |
+| `oomKillerDisabled` | `Bool` | 是否禁用 OOM Killer |
+| `oomMemoryLimit` | `Int64` | OOM 内存限制（字节） |
+| `powerReportEnabled` | `Bool` | 是否启用功耗报告 |
+| `platformMetadata` | `String` | 平台元数据（JSON 格式） |
+
+### 其他初始化相关函数
+
+| 函数 | 签名 | 说明 |
+|------|------|------|
+| `LibboxSetLocale` | `(localeID: String) -> Error?` | 设置本地化语言 |
+| `LibboxVersion` | `() -> String` | 获取 sing-box 版本号 |
+| `LibboxGoVersion` | `() -> String` | 获取 Go 运行时版本 |
+| `LibboxReloadSetupOptions` | `(options: SetupOptions) -> Void` | 重新加载初始化选项 |
+
+## 2.2 CommandServer — 命令服务器
+
+CommandServer 是运行在 Network Extension 中的 gRPC 服务器，负责接收主 App 的命令调用并转发给 sing-box 内核。
+
+### LibboxNewCommandServer — 创建命令服务器
+
+**Go 侧定义**（`experimental/libbox/command_server.go`）：
+```go
+func NewCommandServer(handler CommandServerHandler, platformInterface PlatformInterface) (*CommandServer, error)
+```
+
+**Swift 调用**：
+```swift
+let platformInterface = ExtensionPlatformInterface(self)
+var error: NSError?
+commandServer = LibboxNewCommandServer(platformInterface, platformInterface, &error)
+if let error {
+    throw error
+}
+try commandServer!.start()
+```
+
+### CommandServer 主要方法
+
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `start` | `() throws -> Void` | 启动 gRPC 服务器 |
+| `close` | `() -> Void` | 关闭 gRPC 服务器 |
+| `startOrReloadService` | `(configContent: String, options: OverrideOptions) throws -> Void` | 启动或重载 sing-box 服务 |
+| `closeService` | `() throws -> Void` | 关闭 sing-box 服务 |
+| `writeMessage` | `(level: Int32, message: String) -> Void` | 写入日志消息 |
+| `setError` | `(message: String) -> Void` | 设置错误状态 |
+| `needWIFIState` | `() -> Bool` | 是否需要 WiFi 状态 |
+| `needFindProcess` | `() -> Bool` | 是否需要查找进程 |
+| `pause` | `() -> Void` | 暂停服务（低电量模式） |
+| `wake` | `() -> Void` | 唤醒服务 |
+| `wakeNow` | `() -> Void` | 立即唤醒服务 |
+| `recordScreenState` | `(on: Bool) -> Void` | 记录屏幕状态 |
+| `recordLockState` | `(locked: Bool) -> Void` | 记录锁屏状态 |
+| `resetNetwork` | `() -> Void` | 重置网络 |
+| `updateWIFIState` | `() -> Void` | 更新 WiFi 状态 |
+| `getMITMStatus` | `() -> MITMStatus?` | 查询 MITM 运行状态（MITM 专项） |
+| `getMITMLogs` | `() -> MITMLogIterator?` | 获取 MITM 日志（MITM 专项） |
+| `clearMITMLogs` | `() -> Void` | 清空 MITM 日志（MITM 专项） |
+
+### OverrideOptions — 服务重载选项
+
+```go
+type OverrideOptions struct {
+    // 保留字段，用于未来扩展
+}
+```
+
+## 2.3 CommandClient — 命令客户端
+
+CommandClient 是运行在主 App 中的 gRPC 客户端，用于向 Network Extension 中的 CommandServer 发送命令。
+
+### LibboxNewStandaloneCommandClient — 创建独立命令客户端
+
+**Go 侧定义**（`experimental/libbox/command_client.go`）：
+```go
+func NewStandaloneCommandClient() *CommandClient
+```
+
+**Swift 调用**：
+```swift
+let commandClient = LibboxNewStandaloneCommandClient()
+try commandClient?.connect()
+```
+
+### CommandClient 主要方法
+
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `connect` | `() throws -> Void` | 连接到 CommandServer |
+| `connectWithFD` | `(fd: Int32) throws -> Void` | 通过文件描述符连接 |
+| `disconnect` | `() throws -> Void` | 断开连接 |
+| `serviceClose` | `() throws -> Void` | 关闭服务 |
+| `serviceReload` | `() throws -> Void` | 重载服务 |
+| `status` | `() throws -> StatusMessage` | 查询服务状态 |
+| `connections` | `() throws -> ConnectionIterator` | 查询连接列表 |
+| `group` | `(tag: String) throws -> OutboundGroup` | 查询出站组 |
+| `groupSelect` | `(tag: String, selected: String) throws -> Void` | 切换出站组选中项 |
+| `groupURLTest` | `(tag: String) throws -> Void` | 触发出站组 URL 测试 |
+| `mode` | `() throws -> ModeList` | 查询模式列表 |
+| `modeSet` | `(mode: String) throws -> Void` | 设置模式 |
+| `logs` | `(level: Int32) throws -> LogIterator` | 查询日志 |
+| `networkQuality` | `() throws -> NetworkQualityResult` | 网络质量测试 |
+| `stun` | `(server: String) throws -> STUNResult` | STUN 测试 |
+| `tailscale*` | 多种方法 | Tailscale 管理（peer/status/exit-node/ssh/taildrop/certificate） |
+| `usbip*` | 多种方法 | USB/IP 共享（share/local/status） |
+| `openconnect*` | 多种方法 | OpenConnect 认证 |
+| `openvpn*` | 多种方法 | OpenVPN 认证 |
+
+### LibboxSetXPCDialer — 设置 XPC 拨号器
+
+```go
+func SetXPCDialer(dialer XPCDialer)
+```
+
+用于 iOS 平台通过 XPC 与 Network Extension 通信，而不是本地 TCP 端口。
+
+## 2.4 配置校验与格式化 API
+
+| 函数 | 签名 | 说明 |
+|------|------|------|
+| `LibboxCheckConfig` | `(configContent: String) -> Error?` | 校验配置 JSON 是否合法 |
+| `LibboxFormatConfig` | `(configContent: String) -> StringBox?` | 格式化配置 JSON |
+| `LibboxGenerateConfigSchema` | `() -> StringBox?` | 生成配置 JSON Schema |
+| `LibboxHasTunInbound` | `(configContent: String) -> Bool` | 检查配置是否包含 TUN 入站 |
+
+**StringBox** 是 gomobile bind 中用于返回字符串的包装类型：
+```swift
+if let formatted = LibboxFormatConfig(configContent) {
+    let formattedString = formatted.value
+}
+```
+
+---
+
+# 三、配置管理
+
+## 3.1 配置 JSON 整体结构
+
+sing-box 配置是一个 JSON 对象，包含以下顶层字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `log` | `object` | 否 | 日志配置 |
+| `dns` | `object` | 否 | DNS 配置 |
+| `inbounds` | `[object]` | 是 | 入站配置列表（tun/socks/http/mixed/redirect/tproxy...） |
+| `outbounds` | `[object]` | 是 | 出站配置列表（direct/block/dns/vmess/vless/trojan/shadowsocks/socks/http/wireguard/hysteria/hysteria2/tuic/shadowtls/anytls/selector/urltest/bridge/tor/ssh...） |
+| `route` | `object` | 否 | 路由配置（规则/规则集/自动检测接口...） |
+| `experimental` | `object` | 否 | 实验性功能配置 |
+| `services` | `[object]` | 否 | 服务配置列表（api/clashapi/v2ray-api/mitm...） |
+| `ntp` | `object` | 否 | NTP 时间同步配置 |
+| `endpoint` | `object` | 否 | 端点配置（WireGuard 端点） |
+| `acme` | `object` | 否 | ACME 证书配置 |
+| `certificate` | `[object]` | 否 | 证书配置列表 |
+| `certificate_provider` | `[object]` | 否 | 证书提供者列表 |
+| `debug` | `object` | 否 | 调试配置 |
+
+## 3.2 配置加载流程
+
+```
+SFI UI 编辑配置
+    ↓
+ProfileManager 保存配置到本地文件（或 iCloud）
+    ↓
+用户点击「连接」
+    ↓
+ExtensionProfile.generateProviderConfiguration() 读取配置内容
+    ↓
+配置内容通过 NEVPNProtocol.providerConfiguration["configContent"] 传递给 Extension
+    ↓
+PacketTunnelProvider.startTunnel(options:) 接收配置内容
+    ↓
+持久化配置内容到快照文件（用于崩溃后恢复）
+    ↓
+commandServer.startOrReloadService(configContent, options)
+    ↓
+libbox 内部调用 parseConfig(ctx, configContent) 解析为 option.Options
+    ↓
+sing-box 内核根据 option.Options 创建各个组件（inbounds/outbounds/router/dns/services...）
+    ↓
+服务启动完成
+```
+
+## 3.3 MITM 配置注入
+
+MITM 配置通过 `MITMServiceManager.injectConfiguration(into:)` 方法注入到现有 profile JSON 的 `services[]` 数组中：
+
+```swift
+let mitmConfig = MITMServiceManager.shared.configuration
+let injectedJSON = mitmConfig.injectConfiguration(into: originalProfileJSON)
+```
+
+注入逻辑：
+1. 如果 MITM 未启用，移除 `services[]` 中 `type=mitm` 的配置
+2. 如果 MITM 已启用，构建 MITM service 配置字典，追加到 `services[]` 数组
+3. 序列化回 JSON 字符串
+
+> **注意**：MITM 配置注入发生在主 App 进程中，注入后的完整 JSON 通过 VPN 启动选项传递给 Network Extension。
+
+---
+
+# 四、服务生命周期
+
+## 4.1 启动流程
+
+```
+1. LibboxSetup(options) — 初始化 libbox 全局状态
+2. LibboxNewCommandServer(handler, platformInterface) — 创建命令服务器
+3. commandServer.start() — 启动 gRPC 服务器监听
+4. commandServer.startOrReloadService(configContent, options) — 启动 sing-box 服务
+   ├── parseConfig(ctx, configContent) — 解析配置 JSON
+   ├── 创建日志器（log.NewContextLogger）
+   ├── 创建 DNS 服务
+   ├── 创建路由器（router.NewRouter）
+   ├── 创建出站连接（outbound.NewManager）
+   ├── 创建入站连接（inbound.NewManager）
+   ├── 创建服务（service.Registry → 各个 service.NewService）
+   ├── 启动各个组件（Start(stage, scope)）
+   └── 服务启动完成，开始处理流量
+```
+
+## 4.2 重载流程
+
+```
+commandServer.startOrReloadService(newConfigContent, options)
+    ↓
+关闭旧服务（closeService）
+    ↓
+使用新配置启动新服务
+    ↓
+无缝切换（连接保持/中断取决于配置变化）
+```
+
+## 4.3 停止流程
+
+```
+用户点击「断开」
+    ↓
+NEVPNManager.stopVPNTunnel()
+    ↓
+PacketTunnelProvider.stopTunnel(reason:)
+    ↓
+commandServer.closeService() — 关闭 sing-box 服务
+    ↓
+commandServer.close() — 关闭 gRPC 服务器
+    ↓
+Extension 进程退出
+```
+
+## 4.4 崩溃恢复
+
+Network Extension 崩溃后，系统会自动重启 Extension。重启后：
+1. 从快照文件读取持久化的启动选项（`configContent`）
+2. 重新执行启动流程
+3. 恢复 VPN 连接
+
+---
+
+# 五、TUN 接入与 Network Extension
+
+## 5.1 TUN 接口创建流程
+
+sing-box 内核不直接创建 TUN 接口，而是通过 `PlatformInterface.OpenTun(options)` 回调请求 Swift 侧创建 TUN 接口：
+
+```
+sing-box 内核启动 TUN inbound
+    ↓
+调用 platformInterface.OpenTun(options)
+    ↓
+Swift 侧（ExtensionPlatformInterface）调用 NEPacketTunnelProvider.createTunnelInterface()
+    ↓
+创建 utun 接口，返回文件描述符（fd）
+    ↓
+sing-box 内核使用 fd 操作 TUN 接口
+    ↓
+读取 IP 包 → 解析 → 路由 → 出站 → 写入响应包
+```
+
+## 5.2 TunOptions — TUN 选项
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `name` | `String` | 接口名称（如 `utun9`） |
+| `mtu` | `Int32` | MTU（最大传输单元） |
+| `inet4Address` | `StringIterator` | IPv4 地址列表 |
+| `inet6Address` | `StringIterator` | IPv6 地址列表 |
+| `autoRoute` | `Bool` | 是否自动设置路由 |
+| `strictRoute` | `Bool` | 是否严格路由 |
+| `includeInterface` | `StringIterator` | 包含的网络接口 |
+| `excludeInterface` | `StringIterator` | 排除的网络接口 |
+| `includeRoute` | `[String]` | 包含的路由段 |
+| `excludeRoute` | `[String]` | 排除的路由段 |
+| `includeAddress` | `[String]` | 包含的地址段 |
+| `excludeAddress` | `[String]` | 排除的地址段 |
+
+## 5.3 TUN Interceptor 接口（MITM 专项）
+
+TUN 入站通过 `tun.Interceptor` 接口实现与 MITM 服务的解耦：
+
+```go
+type Interceptor interface {
+    ShouldIntercept(metadata adapter.InboundContext) bool
+    Intercept(ctx context.Context, conn net.Conn, metadata adapter.InboundContext, router adapter.Router, onClose N.CloseHandlerFunc)
+}
+```
+
+TUN 入站在处理 TCP 连接时：
+1. 通过 `service.FromContext[Interceptor](ctx)` 获取已注册的拦截器
+2. 调用 `interceptor.ShouldIntercept(metadata)` 判断是否需要拦截
+3. 如果需要拦截，调用 `interceptor.Intercept(...)` 接管连接
+4. 如果不需要拦截，继续正常路由流程
+
+MITM Service 在启动时同时注册为 `*Service` 和 `tun.Interceptor` 接口。
+
+---
+
+# 六、PlatformInterface 接口
+
+`PlatformInterface` 是 libbox 定义的平台接口，Swift 侧必须实现此接口，为 sing-box 内核提供平台相关的功能。
+
+## 6.1 接口方法清单
+
+| 方法 | 签名 | 说明 | iOS 实现 |
+|------|------|------|----------|
+| `localDNSTransport` | `() -> LocalDNSTransport` | 本地 DNS 传输 | 使用 `NWListener` 实现 |
+| `usePlatformAutoDetectInterfaceControl` | `() -> Bool` | 是否使用平台自动检测接口控制 | `true` |
+| `autoDetectInterfaceControl` | `(fd: Int32) -> Error?` | 自动检测接口控制 | 绑定 socket 到默认接口 |
+| `openTun` | `(options: TunOptions) -> (Int32, Error?)` | 打开 TUN 接口 | 通过 `NEPacketTunnelProvider` 创建 |
+| `useProcFS` | `() -> Bool` | 是否使用 procfs（Android） | `false` |
+| `findConnectionOwner` | `(ipProtocol, sourceAddress, sourcePort, destinationAddress, destinationPort) -> ConnectionOwner?` | 查找连接所有者（按进程） | iOS 不支持，返回 nil |
+| `startDefaultInterfaceMonitor` | `(listener: InterfaceUpdateListener) -> Error?` | 启动默认接口监视器 | 通过 `NWPathMonitor` 实现 |
+| `closeDefaultInterfaceMonitor` | `(listener: InterfaceUpdateListener) -> Error?` | 关闭默认接口监视器 | 停止 `NWPathMonitor` |
+| `getInterfaces` | `() -> NetworkInterfaceIterator?` | 获取网络接口列表 | 通过 `ifaddrs` 获取 |
+| `underNetworkExtension` | `() -> Bool` | 是否运行在 Network Extension 中 | `true` |
+| `includeAllNetworks` | `() -> Bool` | 是否包含所有网络 | 取决于 VPN 配置 |
+| `readWIFIState` | `() -> WIFIState?` | 读取 WiFi 状态（SSID/BSSID） | 通过 `NEHotspotNetwork` 获取 |
+| `clearDNSCache` | `() -> Void` | 清除 DNS 缓存 | 调用系统 API |
+| `sendNotification` | `(notification: Notification) -> Error?` | 发送通知 | 通过 `UNUserNotificationCenter` |
+| `cancelNotification` | `(identifier: String, typeID: Int32) -> Error?` | 取消通知 | 通过 `UNUserNotificationCenter` |
+| `startNeighborMonitor` | `(listener: NeighborUpdateListener) -> Error?` | 启动邻居表监视器 | iOS 不支持 |
+| `closeNeighborMonitor` | `(listener: NeighborUpdateListener) -> Error?` | 关闭邻居表监视器 | iOS 不支持 |
+| `registerMyInterface` | `(name: String) -> Void` | 注册自有接口 | 记录 utun 接口名 |
+| `usePlatformShell` | `() -> Bool` | 是否使用平台 Shell | `false` |
+| `checkPlatformShell` | `() -> Error?` | 检查平台 Shell | 返回错误 |
+| `openShellSession` | `(...) -> ShellSession?` | 打开 Shell 会话 | iOS 不支持 |
+| `lookupUser` | `(username: String) -> PlatformUser?` | 查找用户 | iOS 不支持 |
+| `lookupSFTPServer` | `() -> String?` | 查找 SFTP 服务器 | iOS 不支持 |
+| `readSystemSSHHostKey` | `() -> String?` | 读取系统 SSH 主机密钥 | iOS 不支持 |
+| `tailscaleHostname` | `() -> String` | Tailscale 主机名 | 返回设备名称 |
+| `usePlatformBridge` | `() -> Bool` | 是否使用平台桥接 | `false` |
+| `createBridge` | `(options: BridgeOptions) -> BridgeSession?` | 创建桥接 | iOS 不支持 |
+| `usePlatformAutoRedirect` | `() -> Bool` | 是否使用平台自动重定向 | `false` |
+| `createAutoRedirect` | `(options: [Byte], handler: AutoRedirectHandler) -> AutoRedirectSession?` | 创建自动重定向 | iOS 不支持 |
+
+## 6.2 关键数据结构
+
+### ConnectionOwner — 连接所有者
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `userId` | `Int32` | 用户 ID |
+| `userName` | `String` | 用户名 |
+| `processPath` | `String` | 进程路径 |
+| `processPaths()` | `StringIterator` | 进程路径列表（Android） |
+| `androidPackageNames()` | `StringIterator` | Android 包名列表 |
+
+### NetworkInterface — 网络接口
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `index` | `Int32` | 接口索引 |
+| `mtu` | `Int32` | MTU |
+| `name` | `String` | 接口名称 |
+| `addresses` | `StringIterator` | IP 地址列表 |
+| `flags` | `Int32` | 接口标志 |
+| `type` | `Int32` | 接口类型（WIFI/Cellular/Ethernet/Other） |
+| `dnsServer` | `StringIterator` | DNS 服务器列表 |
+| `dnsSearchDomain` | `StringIterator` | DNS 搜索域列表 |
+| `gateway` | `StringIterator` | 网关列表 |
+| `metered` | `Bool` | 是否计费网络 |
+
+### Notification — 通知
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `identifier` | `String` | 通知唯一标识 |
+| `typeName` | `String` | 类型名称 |
+| `typeID` | `Int32` | 类型 ID |
+| `title` | `String` | 标题 |
+| `subtitle` | `String` | 副标题 |
+| `body` | `String` | 正文 |
+| `openURL` | `String` | 点击后打开的 URL |
+
+---
+
+# 七、CommandServerHandler 接口
+
+`CommandServerHandler` 是 libbox 定义的命令处理器接口，Swift 侧必须实现此接口，处理来自 sing-box 内核的回调请求。
+
+## 7.1 接口方法清单
+
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `serviceStop` | `() -> Error?` | 停止服务（内核请求停止 VPN） |
+| `serviceReload` | `() -> Error?` | 重载服务（内核请求重载配置） |
+| `getSystemProxyStatus` | `() -> SystemProxyStatus?` | 获取系统代理状态（macOS） |
+| `setSystemProxyEnabled` | `(enabled: Bool) -> Error?` | 设置系统代理开关（macOS） |
+| `triggerNativeCrash` | `() -> Error?` | 触发原生崩溃（用于调试） |
+| `writeDebugMessage` | `(message: String) -> Void` | 写入调试消息 |
+| `connectSSHAgent` | `() -> (Int32, Error?)` | 连接 SSH Agent（返回 fd） |
+
+## 7.2 SystemProxyStatus — 系统代理状态
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `available` | `Bool` | 系统代理是否可用 |
+| `enabled` | `Bool` | 系统代理是否已启用 |
+| `httpServer` | `String` | HTTP 代理服务器地址 |
+| `httpPort` | `Int32` | HTTP 代理端口 |
+| `socksServer` | `String` | SOCKS 代理服务器地址 |
+| `socksPort` | `Int32` | SOCKS 代理端口 |
+
+> **注意**：iOS 不支持系统代理，这些方法在 iOS 上返回空值或错误。
+
+---
+
+# 八、MITM 专项接入
+
+> 以下为 MITM（HTTPS 中间人攻击）功能的专项接入文档。MITM 是 sing-box 内核的可选服务，通过 `services[]` 数组中的 `type=mitm` 配置启用。
+
+## 8.1 Swift 侧配置模型
+
+文件：`MITM/MITMConfiguration.swift`
+
+---
+
+# 九、整体修改范围
 
 分成两个工程：
 
@@ -142,7 +702,7 @@ Jailbreak/
 
 ---
 
-# 三、Core 层修改
+# 十、Core 层修改
 
 ---
 
@@ -356,7 +916,7 @@ Outbound
 
 ---
 
-# 四、libbox 修改
+# 十一、libbox 修改
 
 SFI 不直接调用 sing-box。
 
@@ -452,7 +1012,7 @@ Generate CA
 
 ---
 
-# 五、Libbox 编译
+# 十二、Libbox 编译
 
 SFI 使用：
 
@@ -486,7 +1046,7 @@ SFI
 
 ---
 
-# 六、SFI 工程修改
+# 十三、SFI 工程修改
 
 ---
 
@@ -580,7 +1140,7 @@ struct MITMSettings {
 
 ---
 
-# 七、Network Extension 修改
+# 十四、Network Extension 修改
 
 位置：
 
@@ -622,7 +1182,7 @@ MITM
 
 ---
 
-# 八、Jailbreak 模块
+# 十五、Jailbreak 模块
 
 当前 Apple 工程包含 Jailbreak 相关组件。([GitHub][2])
 
@@ -654,7 +1214,7 @@ MITMCAInstaller.swift
 
 ---
 
-# 九、CA 文件管理
+# 十六、CA 文件管理
 
 路径：
 
@@ -685,7 +1245,7 @@ Bundle/
 
 ---
 
-# 十、越狱版增强
+# 十七、越狱版增强
 
 越狱 SFI：
 
@@ -718,7 +1278,7 @@ MITM Service
 
 ---
 
-# 十一、SFI 配置同步
+# 十八、SFI 配置同步
 
 增加：
 
@@ -748,7 +1308,7 @@ libbox.Start()
 
 ---
 
-# 十二、Bridge API
+# 十九、Bridge API
 
 Swift 调用：
 
@@ -772,7 +1332,7 @@ Connections: 12
 
 ---
 
-# 十三、日志接口
+# 二十、日志接口
 
 增加：
 
@@ -804,7 +1364,7 @@ proxy
 
 ---
 
-# 十四、Xcode 修改列表
+# 二十一、Xcode 修改列表
 
 ## Target:
 
@@ -832,7 +1392,7 @@ VPN
 
 ---
 
-# 十五、Build 流程
+# 二十二、Build 流程
 
 完整：
 
@@ -866,7 +1426,7 @@ Xcode build
 
 ---
 
-# 十六、Makefile 增加
+# 二十三、Makefile 增加
 
 建议：
 
@@ -906,7 +1466,7 @@ mitm-ios:
 
 ---
 
-# 十七、最终目录状态
+# 二十四、最终目录状态
 
 完成后：
 
@@ -946,7 +1506,7 @@ Frameworks/
 
 ---
 
-# 十八、SFI 接入 API 完整清单（已实现）
+# 二十五、SFI 接入 API 完整清单（已实现）
 
 > 本章节详细列出 sing-box-for-apple 分支中已实现的 MITM 接入 API、注册表、配置模型与目录结构。
 
