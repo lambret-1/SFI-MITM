@@ -535,6 +535,66 @@ func TestHTTP1_处理连接_保持连接(t *testing.T) {
 	}
 }
 
+// TestHTTP1_处理连接_WebSocket升级 验证处理连接检测到WebSocket Upgrade时调用处理WebSocket
+func TestHTTP1_处理连接_WebSocket升级(t *testing.T) {
+	svc := &Service{
+		ctx:     context.Background(),
+		logger:  获取测试日志器(),
+		options: option.MITMServiceOptions{Enabled: true},
+		叶子缓存:   新证书缓存(默认缓存容量),
+		日志缓冲区: 新日志环形缓冲区(100),
+	}
+
+	// 使用真实TCP连接（处理连接需要SetReadDeadline）
+	监听器, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("创建监听器失败: %v", err)
+	}
+	defer 监听器.Close()
+
+	处理器 := 新建HTTP1处理器(svc, nil, adapter.InboundContext{})
+
+	错误 := make(chan error, 1)
+	go func() {
+		客户端连接, err := 监听器.Accept()
+		if err != nil {
+			return
+		}
+		defer 客户端连接.Close()
+		错误 <- 处理器.处理连接(context.Background(), 客户端连接)
+	}()
+
+	客户端连接, err := net.Dial("tcp", 监听器.Addr().String())
+	if err != nil {
+		t.Fatalf("连接失败: %v", err)
+	}
+	defer 客户端连接.Close()
+
+	// 发送缺少 Host 头的 WebSocket Upgrade 请求（处理WebSocket会返回400）
+	客户端连接.Write([]byte("GET /ws HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"))
+
+	// 读取响应
+	客户端读取器 := bufio.NewReader(客户端连接)
+	客户端连接.SetReadDeadline(time.Now().Add(10 * time.Second))
+	resp, err := http.ReadResponse(客户端读取器, nil)
+	if err != nil {
+		t.Fatalf("读取响应失败: %v", err)
+	}
+	if resp.StatusCode != 400 {
+		t.Errorf("期望 400 状态码，实际 %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	select {
+	case err := <-错误:
+		if err != nil {
+			t.Logf("处理连接返回错误（正常）: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("超时：处理连接未在WebSocket升级后返回")
+	}
+}
+
 // 确保引用
 var _ = tls.VersionTLS12
 var _ http2.Server
