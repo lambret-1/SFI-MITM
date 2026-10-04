@@ -120,7 +120,7 @@ jobs:
             echo "❌ 检查 entitlements | 包含调试权限 get-task-allow=true" >> quick_summary.log
             exit 1
           fi
-          echo "✅ 检查 entitlements | 权限配置很正确" >> quick_summary.log
+          echo "✅ 检查 entitlements | 权限配置正确" >> quick_summary.log
 
       - name: 检查大文件
         if: always()
@@ -398,7 +398,8 @@ jobs:
           with open(os.environ['GITHUB_ENV'], 'a') as f:
               f.write(f"TOTAL_ERRORS={total_errors}\n")
           EOF
-- name: 推送报告到仓库
+
+      - name: 推送报告到仓库
         if: always() && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
         run: |
           if [ "${{ github.event_name }}" == "pull_request" ]; then
@@ -411,7 +412,7 @@ jobs:
           echo "=== 目标分支: $TARGET_BRANCH ==="
           
           if [ ! -f log/README.md ]; then
-            echo "❌ 报告文件未生成，无法推送"
+            echo "❌ 报告文件还未生成，无法推送"
             exit 1
           fi
 
@@ -448,8 +449,8 @@ jobs:
               exit 1
             }
           fi
-          echo "✅ 报告已推送到 $TARGET_BRANCH 分支"
-      
+          echo "✅ 报告已成功推送到 $TARGET_BRANCH 分支"
+
       - name: 上传最终报告为 Artifact
         if: always()
         uses: actions/upload-artifact@v4
