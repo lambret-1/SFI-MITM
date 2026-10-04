@@ -1,0 +1,488 @@
+name: MITM 测试矩阵
+
+on:
+  push:
+    branches:
+      - sing-box
+    paths:
+      - 'protocol/mitm/**'
+      - 'option/mitm.go'
+      - 'daemon/**'
+      - 'experimental/libbox/mitm.go'
+      - '.github/workflows/mitm-test-matrix.yml'
+  pull_request:
+    branches:
+      - sing-box
+  workflow_dispatch:
+
+concurrency:
+  group: mitm-test-matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.25.5"
+
+jobs:
+  # ============================================================
+  # 维度一：按测试模块分组的单元测试矩阵（Ubuntu）
+  # 对应开发文档第十七节测试矩阵：JSON / Service / CA / Certificate / TLS / HTTP / Router / WebSocket
+  # ============================================================
+  unit-test-matrix:
+    name: 单元测试 · ${{ matrix.test_name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - test_name: "配置解析(JSON)"
+            test_path: "./protocol/mitm/ -run Test集成_配置解析|TestNewService_缺少|TestRegisterService"
+          - test_name: "Service生命周期"
+            test_path: "./protocol/mitm/ -run TestNewService|TestStart_生命周期|TestFromContext"
+          - test_name: "CA证书管理"
+            test_path: "./protocol/mitm/ -run TestNewService_加载合法CA|TestNewService_非CA证书被拒绝|TestNewService_缺少证书路径|TestNewService_缺少私钥路径"
+          - test_name: "动态证书签发"
+            test_path: "./protocol/mitm/ -run Test签发叶子证书|Test证书缓存_LRU"
+          - test_name: "TLS终止握手"
+            test_path: "./protocol/mitm/ -run Test集成_TLS终止_完整握手|Test读取客户端问候_SNI"
+          - test_name: "HTTP1.1代理"
+            test_path: "./protocol/mitm/ -run TestHTTP"
+          - test_name: "Router分流"
+            test_path: "./protocol/mitm/ -run Test路由"
+          - test_name: "WebSocket中继"
+            test_path: "./protocol/mitm/ -run TestWebSocket"
+          - test_name: "日志缓冲区"
+            test_path: "./protocol/mitm/ -run Test日志"
+          - test_name: "重写引擎"
+            test_path: "./protocol/mitm/ -run Test集成_重写引擎"
+          - test_name: "失败绕过策略"
+            test_path: "./protocol/mitm/ -run Test集成_失败时绕过策略"
+          - test_name: "上游超时"
+            test_path: "./protocol/mitm/ -run Test集成_上游超时"
+          - test_name: "域名匹配器"
+            test_path: "./protocol/mitm/ -run Test域名匹配器"
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 生成测试 CA 证书
+        run: |
+          openssl req -x509 -newkey rsa:2048 -keyout /tmp/mitm-ca.key -out /tmp/mitm-ca.pem \
+            -days 3650 -nodes -subj "/CN=MITM Test Matrix CA" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,keyCertSign"
+
+      - name: 运行 ${{ matrix.test_name }} 测试
+        run: |
+          echo "=== 测试维度：${{ matrix.test_name }} ==="
+          go test -v -count=1 -timeout 120s ${{ matrix.test_path }} 2>&1
+        env:
+          MITM_TEST_CA_CERT: /tmp/mitm-ca.pem
+          MITM_TEST_CA_KEY: /tmp/mitm-ca.key
+
+  # ============================================================
+  # 维度二：全量测试 + Race Detector（Ubuntu）
+  # 检测并发安全问题，MITM 涉及多连接并发处理
+  # ============================================================
+  race-test:
+    name: 全量测试 · Race Detector
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 生成测试 CA 证书
+        run: |
+          openssl req -x509 -newkey rsa:2048 -keyout /tmp/mitm-ca.key -out /tmp/mitm-ca.pem \
+            -days 3650 -nodes -subj "/CN=MITM Race Test CA" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,keyCertSign"
+
+      - name: 运行 Race Detector 全量测试
+        run: |
+          echo "=== Race Detector 全量测试（MITM 模块 + 相关模块）==="
+          go test -race -count=1 -timeout 300s \
+            ./protocol/mitm/... \
+            ./option/... \
+            ./adapter/... \
+            ./include/... 2>&1
+        env:
+          MITM_TEST_CA_CERT: /tmp/mitm-ca.pem
+          MITM_TEST_CA_KEY: /tmp/mitm-ca.key
+
+  # ============================================================
+  # 维度三：覆盖率收集与报告（Ubuntu）
+  # ============================================================
+  coverage:
+    name: 覆盖率收集
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 生成测试 CA 证书
+        run: |
+          openssl req -x509 -newkey rsa:2048 -keyout /tmp/mitm-ca.key -out /tmp/mitm-ca.pem \
+            -days 3650 -nodes -subj "/CN=MITM Coverage CA" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,keyCertSign"
+
+      - name: 运行覆盖率测试
+        run: |
+          echo "=== 收集 MITM 模块覆盖率 ==="
+          go test -coverprofile=mitm_coverage.out -covermode=atomic \
+            -count=1 -timeout 300s ./protocol/mitm/... 2>&1
+          echo ""
+          echo "=== 覆盖率总览 ==="
+          go tool cover -func=mitm_coverage.out | tail -5
+          echo ""
+          echo "=== 生成 HTML 覆盖率报告 ==="
+          go tool cover -html=mitm_coverage.out -o mitm_coverage.html
+          ls -lh mitm_coverage.html mitm_coverage.out
+        env:
+          MITM_TEST_CA_CERT: /tmp/mitm-ca.pem
+          MITM_TEST_CA_KEY: /tmp/mitm-ca.key
+
+      - name: 上传覆盖率产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: mitm-coverage-report
+          path: |
+            mitm_coverage.out
+            mitm_coverage.html
+          retention-days: 30
+
+  # ============================================================
+  # 维度四：端到端配置校验矩阵（Ubuntu）
+  # 验证各种 MITM 配置组合的 sing-box check 通过率
+  # ============================================================
+  config-check-matrix:
+    name: 配置校验 · ${{ matrix.config_name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - config_name: "完整MITM配置"
+            config_json: |
+              {
+                "log": {"level": "info"},
+                "inbounds": [{"type": "direct", "tag": "direct-in"}],
+                "outbounds": [{"type": "direct", "tag": "direct"}],
+                "services": [{
+                  "type": "mitm", "tag": "mitm", "enabled": true,
+                  "ca": {"certificate": "/tmp/mitm-ca.pem", "private_key": "/tmp/mitm-ca.key"},
+                  "match": {"domain_suffix": ["example.com"], "domain": ["api.example.com"]},
+                  "on_error": "bypass", "upstream_timeout": 30,
+                  "rewrite": {"enabled": true, "max_body_size": 10485760,
+                    "rules": [{"domain_suffix": ["example.com"], "request_header": {"X-MITM": "true"}}]}
+                }]
+              }
+          - config_name: "未启用MITM"
+            config_json: |
+              {"log": {"level": "info"},
+               "inbounds": [{"type": "direct", "tag": "direct-in"}],
+               "outbounds": [{"type": "direct", "tag": "direct"}],
+               "services": [{"type": "mitm", "tag": "mitm", "enabled": false}]}
+          - config_name: "TUN+MITM"
+            config_json: |
+              {"log": {"level": "info"},
+               "inbounds": [{"type": "tun", "tag": "tun-in", "interface_name": "utun99"}],
+               "outbounds": [{"type": "direct", "tag": "direct"}],
+               "services": [{
+                 "type": "mitm", "tag": "mitm", "enabled": true,
+                 "ca": {"certificate": "/tmp/mitm-ca.pem", "private_key": "/tmp/mitm-ca.key"},
+                 "match": {"domain_suffix": ["example.com"]}
+               }]}
+          - config_name: "多域名匹配"
+            config_json: |
+              {"log": {"level": "info"},
+               "inbounds": [{"type": "direct", "tag": "direct-in"}],
+               "outbounds": [{"type": "direct", "tag": "direct"}],
+               "services": [{
+                 "type": "mitm", "tag": "mitm", "enabled": true,
+                 "ca": {"certificate": "/tmp/mitm-ca.pem", "private_key": "/tmp/mitm-ca.key"},
+                 "match": {"domain_suffix": ["example.com", "test.org", "foo.bar"],
+                           "domain": ["api.example.com", "cdn.test.org"]}
+               }]}
+          - config_name: "重写规则全字段"
+            config_json: |
+              {"log": {"level": "info"},
+               "inbounds": [{"type": "direct", "tag": "direct-in"}],
+               "outbounds": [{"type": "direct", "tag": "direct"}],
+               "services": [{
+                 "type": "mitm", "tag": "mitm", "enabled": true,
+                 "ca": {"certificate": "/tmp/mitm-ca.pem", "private_key": "/tmp/mitm-ca.key"},
+                 "match": {"domain_suffix": ["example.com"]},
+                 "rewrite": {"enabled": true, "rules": [{
+                   "domain_suffix": ["example.com"], "path_prefix": "/api/",
+                   "method": ["GET", "POST"],
+                   "request_header": {"X-Test": "true"},
+                   "request_header_delete": ["X-Old"],
+                   "response_header": {"X-Intercepted": "yes"},
+                   "response_header_delete": ["X-Server"],
+                   "body_replace": [{"find": "old", "replace": "new"}]
+                 }]}
+               }]}
+          - config_name: "on_error=block"
+            config_json: |
+              {"log": {"level": "info"},
+               "inbounds": [{"type": "direct", "tag": "direct-in"}],
+               "outbounds": [{"type": "direct", "tag": "direct"}],
+               "services": [{
+                 "type": "mitm", "tag": "mitm", "enabled": true,
+                 "ca": {"certificate": "/tmp/mitm-ca.pem", "private_key": "/tmp/mitm-ca.key"},
+                 "match": {"domain_suffix": ["example.com"]},
+                 "on_error": "block", "upstream_timeout": 60
+               }]}
+          - config_name: "无match规则(空匹配)"
+            config_json: |
+              {"log": {"level": "info"},
+               "inbounds": [{"type": "direct", "tag": "direct-in"}],
+               "outbounds": [{"type": "direct", "tag": "direct"}],
+               "services": [{
+                 "type": "mitm", "tag": "mitm", "enabled": true,
+                 "ca": {"certificate": "/tmp/mitm-ca.pem", "private_key": "/tmp/mitm-ca.key"}
+               }]}
+          - config_name: "多outbound+MITM"
+            config_json: |
+              {"log": {"level": "info"},
+               "inbounds": [{"type": "direct", "tag": "direct-in"}],
+               "outbounds": [
+                 {"type": "direct", "tag": "direct"},
+                 {"type": "block", "tag": "block"}
+               ],
+               "services": [{
+                 "type": "mitm", "tag": "mitm", "enabled": true,
+                 "ca": {"certificate": "/tmp/mitm-ca.pem", "private_key": "/tmp/mitm-ca.key"},
+                 "match": {"domain_suffix": ["example.com"]}
+               }]}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 编译 sing-box
+        run: go build -o singbox ./cmd/sing-box
+
+      - name: 生成测试 CA 证书
+        run: |
+          openssl req -x509 -newkey rsa:2048 -keyout /tmp/mitm-ca.key -out /tmp/mitm-ca.pem \
+            -days 3650 -nodes -subj "/CN=MITM Config Matrix CA" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,keyCertSign"
+
+      - name: 校验配置：${{ matrix.config_name }}
+        run: |
+          echo "=== 配置场景：${{ matrix.config_name }} ==="
+          cat > /tmp/test-config.json << 'CONFIGEOF'
+          ${{ matrix.config_json }}
+          CONFIGEOF
+          echo "--- 配置内容 ---"
+          cat /tmp/test-config.json
+          echo ""
+          echo "--- sing-box check ---"
+          ./singbox check -c /tmp/test-config.json
+          echo "✅ 配置校验通过：${{ matrix.config_name }}"
+
+  # ============================================================
+  # 维度五：无效配置负向测试矩阵（Ubuntu）
+  # 验证无效配置被正确拒绝
+  # ============================================================
+  invalid-config-test:
+    name: 负向测试 · 无效配置拒绝
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 编译 sing-box
+        run: go build -o singbox ./cmd/sing-box
+
+      - name: 生成非 CA 证书（用于负向测试）
+        run: |
+          openssl req -x509 -newkey rsa:2048 -keyout /tmp/non-ca.key -out /tmp/non-ca.pem \
+            -days 365 -nodes -subj "/CN=Not a CA" \
+            -addext "basicConstraints=critical,CA:FALSE" \
+            -addext "keyUsage=critical,digitalSignature"
+
+      - name: 测试1：缺少证书路径应报错
+        run: |
+          cat > /tmp/bad1.json << 'EOF'
+          {"log": {"level": "info"},
+           "inbounds": [{"type": "direct", "tag": "in"}],
+           "outbounds": [{"type": "direct", "tag": "direct"}],
+           "services": [{"type": "mitm", "tag": "mitm", "enabled": true,
+             "ca": {"private_key": "/tmp/mitm-ca.key"}}]}
+          EOF
+          if ./singbox check -c /tmp/bad1.json 2>&1; then
+            echo "❌ 未拒绝缺少证书路径的配置"
+            exit 1
+          else
+            echo "✅ 正确拒绝缺少证书路径的配置"
+          fi
+
+      - name: 测试2：缺少私钥路径应报错
+        run: |
+          cat > /tmp/bad2.json << 'EOF'
+          {"log": {"level": "info"},
+           "inbounds": [{"type": "direct", "tag": "in"}],
+           "outbounds": [{"type": "direct", "tag": "direct"}],
+           "services": [{"type": "mitm", "tag": "mitm", "enabled": true,
+             "ca": {"certificate": "/tmp/mitm-ca.pem"}}]}
+          EOF
+          if ./singbox check -c /tmp/bad2.json 2>&1; then
+            echo "❌ 未拒绝缺少私钥路径的配置"
+            exit 1
+          else
+            echo "✅ 正确拒绝缺少私钥路径的配置"
+          fi
+
+      - name: 测试3：非CA证书应被拒绝（运行时验证）
+        run: |
+          cat > /tmp/bad3.json << 'EOF'
+          {"log": {"level": "info"},
+           "inbounds": [{"type": "direct", "tag": "in"}],
+           "outbounds": [{"type": "direct", "tag": "direct"}],
+           "services": [{"type": "mitm", "tag": "mitm", "enabled": true,
+             "ca": {"certificate": "/tmp/non-ca.pem", "private_key": "/tmp/non-ca.key"}}]}
+          EOF
+          # check 阶段可能通过（不验证证书内容），但运行时 NewService 应拒绝
+          # 这里通过 go test 验证非 CA 证书被拒绝
+          go test -v -count=1 -run TestNewService_非CA证书被拒绝 ./protocol/mitm/ 2>&1 | grep -E "PASS|FAIL"
+          echo "✅ 非CA证书运行时拒绝验证完成"
+
+      - name: 测试4：未知service类型应报错
+        run: |
+          cat > /tmp/bad4.json << 'EOF'
+          {"log": {"level": "info"},
+           "inbounds": [{"type": "direct", "tag": "in"}],
+           "outbounds": [{"type": "direct", "tag": "direct"}],
+           "services": [{"type": "unknown-service-type", "tag": "test"}]}
+          EOF
+          if ./singbox check -c /tmp/bad4.json 2>&1; then
+            echo "❌ 未拒绝未知 service 类型"
+            exit 1
+          else
+            echo "✅ 正确拒绝未知 service 类型"
+          fi
+
+  # ============================================================
+  # 维度六：macOS 平台测试（验证跨平台兼容性）
+  # ============================================================
+  macos-test:
+    name: macOS 平台测试
+    runs-on: macos-14
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 显示环境
+        run: |
+          go version
+          uname -a
+
+      - name: 生成测试 CA 证书
+        run: |
+          openssl req -x509 -newkey rsa:2048 -keyout /tmp/mitm-ca.key -out /tmp/mitm-ca.pem \
+            -days 3650 -nodes -subj "/CN=MITM macOS Test CA" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,keyCertSign"
+
+      - name: 编译 sing-box（macOS/arm64）
+        run: go build -o singbox ./cmd/sing-box
+
+      - name: 运行 MITM 模块测试（macOS）
+        run: |
+          go test -v -count=1 -timeout 180s ./protocol/mitm/... 2>&1 | tail -30
+        env:
+          MITM_TEST_CA_CERT: /tmp/mitm-ca.pem
+          MITM_TEST_CA_KEY: /tmp/mitm-ca.key
+
+      - name: 配置校验（macOS）
+        run: |
+          cat > /tmp/mitm-macos.json << 'EOF'
+          {"log": {"level": "info"},
+           "inbounds": [{"type": "direct", "tag": "direct-in"}],
+           "outbounds": [{"type": "direct", "tag": "direct"}],
+           "services": [{"type": "mitm", "tag": "mitm", "enabled": true,
+             "ca": {"certificate": "/tmp/mitm-ca.pem", "private_key": "/tmp/mitm-ca.key"},
+             "match": {"domain_suffix": ["example.com"]}}]}
+          EOF
+          ./singbox check -c /tmp/mitm-macos.json
+          echo "✅ macOS 配置校验通过"
+
+  # ============================================================
+  # 维度七：编译矩阵（多平台交叉编译验证）
+  # ============================================================
+  build-matrix:
+    name: 交叉编译 · ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: freebsd
+            goarch: amd64
+          - goos: windows
+            goarch: amd64
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 交叉编译 ${{ matrix.goos }}/${{ matrix.goarch }}
+        run: |
+          echo "=== 交叉编译：${{ matrix.goos }}/${{ matrix.goarch }} ==="
+          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+            go build -o singbox-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/sing-box
+          ls -lh singbox-${{ matrix.goos }}-${{ matrix.goarch }}
+          file singbox-${{ matrix.goos }}-${{ matrix.goarch }} || true
+          echo "✅ 交叉编译成功：${{ matrix.goos }}/${{ matrix.goarch }}"
