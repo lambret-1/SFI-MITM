@@ -11,7 +11,6 @@ concurrency:
   group: sfi-pr-quick-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
-# 必须开启 contents: write，否则无法推送到仓库
 permissions:
   contents: write
   pull-requests: read
@@ -230,7 +229,7 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 需要完整历史记录用于 commit
+          fetch-depth: 0
 
       - name: 下载错误日志
         uses: actions/download-artifact@v4
@@ -248,6 +247,7 @@ jobs:
         run: |
           python3 - << 'EOF'
           import json, os, collections
+          from datetime import datetime, timezone, timedelta  # <--- 新增导入
 
           quick_errors = []
           quick_log_path = './artifacts/quick-errors/quick_errors.log'
@@ -268,11 +268,17 @@ jobs:
           swift_warnings = [i for i in swiftlint_issues if i.get('severity') == 'warning']
           total_errors = len(quick_errors) + len(swift_errors)
 
+          # ================= 修改时间逻辑 =================
+          # 获取中国标准时间 (UTC+8)，而不是默认的 UTC 时间
+          china_tz = timezone(timedelta(hours=8))
+          china_time = datetime.now(china_tz).strftime('%Y-%m-%d %H:%M:%S')
+          # ================================================
+
           md = []
           md.append("# 🚀 PR 检查汇总报告\n")
           md.append("> 由 GitHub Actions 自动生成，包含静态检查与 SwiftLint 结果。\n")
-          md.append(f"**更新时间**: `{os.popen('date').read().strip()}`\n")
-          
+          md.append(f"**更新时间 (中国标准时间)**: `{china_time}`\n")  # <--- 使用中国时间
+
           md.append("## 📊 总体统计\n")
           md.append(f"- 🔴 **严重错误**: {total_errors}")
           md.append(f"- 🟡 **警告**: {len(swift_warnings)}\n")
@@ -317,13 +323,11 @@ jobs:
 
           print("✅ 报告已生成：log/README.md 及 GitHub Step Summary")
 
-          # 将错误数写入环境变量供后续步骤使用
           with open(os.environ['GITHUB_ENV'], 'a') as f:
               f.write(f"TOTAL_ERRORS={total_errors}\n")
           EOF
 
       - name: 配置 Git 并推送报告
-        # 只在 push 事件时推送，避免 PR 事件无法写权限导致报错
         if: github.event_name == 'push'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
