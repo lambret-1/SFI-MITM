@@ -4,16 +4,14 @@ on:
   push:
     branches:
       - sing-box
-    paths:
-      # 基础冒烟门禁：核心 Go 代码修改时触发
-      - '**/*.go'
-      - 'go.mod'
-      - 'go.sum'
-      - '.github/workflows/mitm-ci.yml'
     paths-ignore:
-      # 排除实验性包和部署包，由各自专项流水线处理
+      # 基础冒烟门禁：排除非核心代码路径，其余修改均触发
       - 'experimental/**'
       - 'deploy/**'
+      - '.github/workflows/mitm-test-matrix.yml'
+      - '.github/workflows/full-test-matrix.yml'
+      - '.github/workflows/libbox-build.yml'
+      - '.github/workflows/ios-deploy.yml'
       - '**.md'
   pull_request:
     branches:
