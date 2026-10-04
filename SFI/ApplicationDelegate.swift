@@ -18,7 +18,8 @@ class ApplicationDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCe
         options.tempPath = FilePath.cacheDirectory.relativePath
         var error: NSError?
         LibboxSetup(options, &error)
-        LibboxSetLocale(Locale.current.identifier)
+        var localeError: NSError?
+        LibboxSetLocale(Locale.current.identifier, &localeError)
         let notificationCenter = UNUserNotificationCenter.current()
         notificationCenter.setNotificationCategories([
             UNNotificationCategory(
