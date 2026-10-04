@@ -514,6 +514,69 @@ func Test处理WebSocket_完整转发_真实TCP(t *testing.T) {
 	}
 }
 
+// Test处理WebSocket_读取上游响应失败 验证上游关闭连接时读取响应失败
+func Test处理WebSocket_读取上游响应失败(t *testing.T) {
+	svc, ca证书, ca私钥 := 创建完整TLS服务(t)
+	上游证书 := 签发上游测试证书(t, ca证书, ca私钥, "example.com")
+
+	// mock Router：接受连接后立即关闭，不发送响应
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			tls配置 := &tls.Config{
+				Certificates: []tls.Certificate{上游证书},
+				NextProtos:   []string{"http/1.1"},
+			}
+			tls服务端 := tls.Server(conn, tls配置)
+			if err := tls服务端.Handshake(); err != nil {
+				return
+			}
+			// 握手成功后立即关闭，不发送响应
+			tls服务端.Close()
+		},
+	}
+
+	监听器, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("创建监听器失败: %v", err)
+	}
+	defer 监听器.Close()
+
+	处理器 := 新建HTTP1处理器(svc, mock, adapter.InboundContext{})
+
+	错误 := make(chan error, 1)
+	go func() {
+		客户端连接, err := 监听器.Accept()
+		if err != nil {
+			return
+		}
+		defer 客户端连接.Close()
+		req := &http.Request{
+			Method: "GET",
+			Host:   "example.com",
+			URL:    &url.URL{Path: "/ws", Host: "example.com"},
+			Header: make(http.Header),
+		}
+		req.Header.Set("Upgrade", "websocket")
+		req.Header.Set("Connection", "Upgrade")
+		错误 <- 处理器.处理WebSocket(context.Background(), 客户端连接, bufio.NewReader(客户端连接), req)
+	}()
+
+	客户端连接, err := net.Dial("tcp", 监听器.Addr().String())
+	if err != nil {
+		t.Fatalf("连接失败: %v", err)
+	}
+	defer 客户端连接.Close()
+
+	select {
+	case err := <-错误:
+		if err == nil {
+			t.Error("期望读取上游响应失败返回错误")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("超时：处理WebSocket 未在上游关闭后返回")
+	}
+}
+
 // ========== Intercept 域名匹配完整流程测试 ==========
 
 // TestIntercept_域名匹配_完整TLS转发 验证Intercept域名匹配时终止TLS并转发HTTP请求
