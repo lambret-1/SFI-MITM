@@ -163,6 +163,34 @@ func Test双向转发TLS_数据转发(t *testing.T) {
 	上游端.Close()
 }
 
+// Test双向转发TLS_写入上游失败 验证写入上游失败时返回错误
+func Test双向转发TLS_写入上游失败(t *testing.T) {
+	客户端端, 上游端 := net.Pipe()
+	defer 客户端端.Close()
+
+	// 客户端发送数据后，关闭上游端，触发写入失败和读取EOF
+	go func() {
+		客户端端.Write([]byte("test data"))
+		time.Sleep(100 * time.Millisecond)
+		上游端.Close()
+	}()
+
+	// 双向转发（应该返回错误）
+	错误 := make(chan error, 1)
+	go func() {
+		错误 <- 双向转发TLS(客户端端, 上游端)
+	}()
+
+	select {
+	case err := <-错误:
+		if err == nil {
+			t.Error("期望写入上游失败返回错误")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("超时：双向转发TLS未在写入失败后返回")
+	}
+}
+
 // Test处理连接_空连接关闭 验证处理连接在连接关闭时正常返回
 func Test处理连接_空连接关闭(t *testing.T) {
 	svc := &Service{
