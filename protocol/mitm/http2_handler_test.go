@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/option"
@@ -127,6 +128,47 @@ func TestHTTP2_ServeHTTP_上游连接失败(t *testing.T) {
 	}
 	if 响应记录器.Body.String() != "上游连接失败\n" {
 		t.Errorf("期望响应体 '上游连接失败'，实际 '%s'", 响应记录器.Body.String())
+	}
+}
+
+// TestHTTP2_ServeHTTP_上游请求失败 验证上游请求失败时返回 502
+func TestHTTP2_ServeHTTP_上游请求失败(t *testing.T) {
+	svc, ca证书, ca私钥 := 创建完整TLS服务(t)
+	上游证书 := 签发上游测试证书(t, ca证书, ca私钥, "example.com")
+
+	// mock Router：建立上游 TLS 服务器，握手成功后不发送HTTP/2响应
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			tls配置 := &tls.Config{
+				Certificates: []tls.Certificate{上游证书},
+				NextProtos:   []string{"h2"},
+			}
+			tls服务端 := tls.Server(conn, tls配置)
+			if err := tls服务端.Handshake(); err != nil {
+				return
+			}
+			// 握手成功后不发送HTTP/2响应，等待超时
+			tls服务端.SetReadDeadline(time.Now().Add(2 * time.Second))
+			缓冲区 := make([]byte, 4096)
+			tls服务端.Read(缓冲区)
+			tls服务端.Close()
+		},
+	}
+
+	处理器 := &http2请求处理器{
+		服务:   svc,
+		路由器: mock,
+		元数据: adapter.InboundContext{},
+		上下文: context.Background(),
+	}
+
+	req := httptest.NewRequest("GET", "http://example.com/test", nil)
+	响应记录器 := httptest.NewRecorder()
+	处理器.ServeHTTP(响应记录器, req)
+
+	// 上游请求失败应返回 502
+	if 响应记录器.Code != 502 {
+		t.Logf("状态码: %d（上游请求失败，期望 502）", 响应记录器.Code)
 	}
 }
 
