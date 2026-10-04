@@ -80,13 +80,7 @@ struct ProfileSelectorButton: View {
 extension View {
     @ViewBuilder
     func selectorBackground() -> some View {
-        if #available(iOS 26.0, macOS 26.0, tvOS 26.0, *) {
-            glassEffect(.regular.interactive(), in: .rect(cornerRadius: 12))
-        } else {
-            background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.secondary.opacity(0.1))
-            )
-        }
+        // 使用毛玻璃材质替代不存在的 glassEffect API，兼容 iOS 16+
+        background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
 }

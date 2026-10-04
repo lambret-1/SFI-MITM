@@ -36,14 +36,8 @@ struct MainView: View {
     @ViewBuilder
     private var tabViewContent: some View {
         if shouldShowBottomAccessory {
-            if #available(iOS 26.0, *), !Variant.debugNoIOS26 {
-                baseTabView
-                    .tabViewBottomAccessory {
-                        bottomAccessoryContent
-                    }
-            } else {
-                legacyTabView
-            }
+            // 统一使用 safeAreaInset 兼容方案，移除不存在的 tabViewBottomAccessory API
+            legacyTabView
         } else {
             baseTabView
         }

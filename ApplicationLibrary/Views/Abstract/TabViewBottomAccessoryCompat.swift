@@ -11,14 +11,9 @@ import SwiftUI
             @ViewBuilder content: @escaping () -> some View
         ) -> some View {
             if isEnabled {
-                if #available(iOS 26.0, *), useSystemAccessory {
-                    tabViewBottomAccessory {
-                        content()
-                    }
-                } else {
-                    safeAreaInset(edge: .bottom, spacing: 0) {
-                        TabViewBottomAccessoryContainer(content: content)
-                    }
+                // 统一使用 safeAreaInset 兼容方案，覆盖 iOS 16+ 全版本
+                safeAreaInset(edge: .bottom, spacing: 0) {
+                    TabViewBottomAccessoryContainer(content: content)
                 }
             } else {
                 self

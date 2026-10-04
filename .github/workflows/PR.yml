@@ -104,20 +104,29 @@ jobs:
       - name: 检查 entitlements
         if: always()
         run: |
-          ENT=$(find . -name '*.entitlements' -not -path './.git/*' | head -1)
-          if [ -z "$ENT" ]; then
+          ENT_FILES=$(find . -name '*.entitlements' -not -path './.git/*' -not -path './Frameworks/*')
+          if [ -z "$ENT_FILES" ]; then
             echo "⚠️ 检查 entitlements | 未找到文件" >> quick_summary.log
             exit 0
           fi
-          echo "检查: $ENT"
-          if ! grep -q 'com.apple.developer.networking.networkextension' "$ENT"; then
-            echo "❌ 缺少关键权限: com.apple.developer.networking.networkextension" | tee -a quick_errors.log
+          echo "检查 entitlements 文件列表:"
+          echo "$ENT_FILES"
+          # 遍历所有 entitlements，只要有一个包含网络扩展权限即通过
+          FOUND_NETEXT=0
+          while IFS= read -r ENT; do
+            if grep -q 'com.apple.developer.networking.networkextension' "$ENT"; then
+              FOUND_NETEXT=1
+              echo "  ✅ $ENT 包含网络扩展权限"
+            fi
+            if grep -qE 'get-task-allow.*true' "$ENT"; then
+              echo "❌ entitlements 包含 get-task-allow=true: $ENT" | tee -a quick_errors.log
+              echo "❌ 检查 entitlements | 包含调试权限 get-task-allow=true" >> quick_summary.log
+              exit 1
+            fi
+          done <<< "$ENT_FILES"
+          if [ "$FOUND_NETEXT" -eq 0 ]; then
+            echo "❌ 缺少关键权限: com.apple.developer.networking.networkextension（所有 entitlements 均未包含）" | tee -a quick_errors.log
             echo "❌ 检查 entitlements | 缺少网络扩展权限" >> quick_summary.log
-            exit 1
-          fi
-          if grep -qE 'get-task-allow.*true' "$ENT"; then
-            echo "❌ entitlements 包含 get-task-allow=true" | tee -a quick_errors.log
-            echo "❌ 检查 entitlements | 包含调试权限 get-task-allow=true" >> quick_summary.log
             exit 1
           fi
           echo "✅ 检查 entitlements | 权限配置正确" >> quick_summary.log

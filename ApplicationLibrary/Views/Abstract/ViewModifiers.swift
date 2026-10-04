@@ -119,14 +119,9 @@ public extension View {
         #if os(tvOS)
             ActionButtonWrapper { self }
         #else
-            if #available(iOS 26.0, macOS 26.0, *) {
-                frame(width: 44, height: 32)
-                    .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 8))
-            } else {
-                frame(width: 44, height: 32)
-                    .background(Color.secondary.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
+            // 使用毛玻璃材质替代不存在的 glassEffect API，兼容 iOS 16+
+            frame(width: 44, height: 32)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
         #endif
     }
 }
@@ -156,30 +151,8 @@ private struct CardStyleModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, macOS 26.0, tvOS 26.0, *) {
-            content
-                .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 16))
-        } else {
-            content
-                .background(backgroundColor)
-                .cornerRadius(16)
-        }
-    }
-
-    private var backgroundColor: Color {
-        #if os(iOS)
-            return Color(uiColor: .secondarySystemGroupedBackground)
-        #elseif os(macOS)
-            return Color(nsColor: .textBackgroundColor)
-        #elseif os(tvOS)
-            switch colorScheme {
-            case .dark:
-                return Color(uiColor: .black)
-            default:
-                return Color(uiColor: .white)
-            }
-        #else
-            return Color.clear
-        #endif
+        // 使用毛玻璃材质替代不存在的 glassEffect API，兼容 iOS 16+
+        content
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 }
