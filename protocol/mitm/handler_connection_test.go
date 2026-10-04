@@ -255,6 +255,61 @@ func TestHTTP1_处理WebSocket_转发握手请求失败(t *testing.T) {
 	}
 }
 
+// TestHTTP1_处理WebSocket_读取上游响应失败 验证读取上游WebSocket响应失败时返回错误
+func TestHTTP1_处理WebSocket_读取上游响应失败(t *testing.T) {
+	svc, ca证书, ca私钥 := 创建完整TLS服务(t)
+	上游证书 := 签发上游测试证书(t, ca证书, ca私钥, "example.com")
+
+	// mock Router：建立上游 TLS 服务器，握手成功后不发送响应就关闭
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			tls配置 := &tls.Config{
+				Certificates: []tls.Certificate{上游证书},
+				NextProtos:   []string{"http/1.1"},
+			}
+			tls服务端 := tls.Server(conn, tls配置)
+			if err := tls服务端.Handshake(); err != nil {
+				return
+			}
+			// 读取请求但不发送响应，然后关闭
+			读取器 := bufio.NewReader(tls服务端)
+			tls服务端.SetReadDeadline(time.Now().Add(2 * time.Second))
+			缓冲区 := make([]byte, 4096)
+			读取器.Read(缓冲区)
+			tls服务端.Close()
+		},
+	}
+
+	客户端端, 服务端端 := net.Pipe()
+	defer 客户端端.Close()
+	defer 服务端端.Close()
+
+	处理器 := 新建HTTP1处理器(svc, mock, adapter.InboundContext{})
+
+	req := &http.Request{
+		Method: "GET",
+		Host:   "example.com",
+		URL:    &url.URL{Path: "/ws", Host: "example.com"},
+		Header: make(http.Header),
+	}
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Connection", "Upgrade")
+
+	错误 := make(chan error, 1)
+	go func() {
+		错误 <- 处理器.处理WebSocket(context.Background(), 服务端端, bufio.NewReader(服务端端), req)
+	}()
+
+	select {
+	case err := <-错误:
+		if err == nil {
+			t.Error("期望读取上游响应失败返回错误")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("超时：处理WebSocket 未在读取响应失败后返回")
+	}
+}
+
 // newBufioReader 创建 bufio.Reader（辅助函数）
 func newBufioReader(r io.Reader) *bufio.Reader {
 	return bufio.NewReader(r)
