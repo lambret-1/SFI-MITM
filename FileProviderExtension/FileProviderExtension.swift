@@ -12,7 +12,11 @@ class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     }()
 
     private var workingDirectory: URL {
-        let groupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupID)!
+        // 安全获取 App Group 共享目录，避免强制解包崩溃
+        // TrollStore 越狱环境下 containerURL 可能返回 nil
+        let groupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupID)
+            ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents")
         return groupURL
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Caches", isDirectory: true)
