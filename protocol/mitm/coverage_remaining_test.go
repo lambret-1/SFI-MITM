@@ -282,6 +282,23 @@ func Test读取客户端问候_非ClientHello(t *testing.T) {
 	}
 }
 
+// Test读取客户端问候_握手数据读取失败 验证握手数据读取失败时返回错误
+func Test读取客户端问候_握手数据读取失败(t *testing.T) {
+	客户端端, 服务端端 := net.Pipe()
+	defer 服务端端.Close()
+
+	go func() {
+		// 发送 TLS 记录头（握手长度=5），但不发送握手数据，然后关闭
+		客户端端.Write([]byte{0x16, 0x03, 0x03, 0x00, 0x05})
+		客户端端.Close()
+	}()
+
+	_, err := 读取客户端问候(服务端端)
+	if err == nil {
+		t.Error("期望握手数据读取失败时返回错误")
+	}
+}
+
 // ========== ShouldIntercept 全分支覆盖 ==========
 
 // TestShouldIntercept_未启用 验证未启用时返回false
