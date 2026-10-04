@@ -467,5 +467,90 @@ func TestIntercept_处理错误非EOF(t *testing.T) {
 	}
 }
 
+// TestIntercept_关闭回调被调用 验证Intercept完成时关闭回调被调用
+func TestIntercept_关闭回调被调用(t *testing.T) {
+	证书PEM, 私钥PEM := 生成测试CA(t)
+	ca证书, ca私钥 := 解析测试CA(t, 证书PEM, 私钥PEM)
+
+	svc := &Service{
+		ctx:     context.Background(),
+		logger:  获取测试日志器(),
+		options: option.MITMServiceOptions{Enabled: true, UpstreamTimeout: 3},
+		根证书: &根证书实例{
+			证书对: tls.Certificate{
+				Certificate: [][]byte{ca证书.Raw},
+				PrivateKey:  ca私钥,
+			},
+			证书实体: ca证书,
+		},
+		叶子缓存:   新证书缓存(默认缓存容量),
+		匹配器:    新域名匹配器(option.MITMMatchOptions{Domain: []string{"example.com"}}),
+		日志缓冲区: 新日志环形缓冲区(100),
+		上游根证书池: 创建测试证书池(t, ca证书),
+	}
+
+	// 使用真实TCP连接（处理连接需要SetReadDeadline）
+	监听器, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("创建监听器失败: %v", err)
+	}
+	defer 监听器.Close()
+
+	// mock Router：不处理连接（HTTP处理会因为上游连接超时而返回错误）
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			// 不做任何事
+		},
+	}
+
+	// 关闭回调被调用标记
+	关闭回调调用 := make(chan error, 1)
+	关闭回调 := func(err error) {
+		关闭回调调用 <- err
+	}
+
+	完成 := make(chan struct{}, 1)
+	go func() {
+		客户端连接, err := 监听器.Accept()
+		if err != nil {
+			return
+		}
+		defer 客户端连接.Close()
+		svc.Intercept(context.Background(), 客户端连接, adapter.InboundContext{}, mock, 关闭回调)
+		完成 <- struct{}{}
+	}()
+
+	// 客户端使用 TLS 连接，协商 ALPN=http/1.1
+	客户端配置 := &tls.Config{
+		ServerName: "example.com",
+		RootCAs:    创建测试证书池(t, ca证书),
+		NextProtos: []string{"http/1.1"},
+	}
+	客户端连接, err := tls.Dial("tcp", 监听器.Addr().String(), 客户端配置)
+	if err != nil {
+		t.Fatalf("TLS 连接失败: %v", err)
+	}
+	defer 客户端连接.Close()
+
+	// 发送有效的 HTTP 请求（上游连接会超时，处理请求返回502）
+	客户端连接.Write([]byte("GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n"))
+
+	// 等待关闭回调被调用
+	select {
+	case err := <-关闭回调调用:
+		t.Logf("关闭回调被调用，错误: %v", err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("超时：关闭回调未被调用")
+	}
+
+	// 等待 Intercept 返回
+	select {
+	case <-完成:
+		// 正常返回
+	case <-time.After(10 * time.Second):
+		t.Fatal("超时：Intercept 未返回")
+	}
+}
+
 // 确保 sync 包被引用
 var _ sync.Mutex
