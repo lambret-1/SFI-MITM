@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -308,6 +309,82 @@ func TestHTTP1_处理WebSocket_读取上游响应失败(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("超时：处理WebSocket 未在读取响应失败后返回")
 	}
+}
+
+// TestHTTP1_处理WebSocket_转发101响应失败 验证转发101响应给客户端失败时返回错误
+func TestHTTP1_处理WebSocket_转发101响应失败(t *testing.T) {
+	svc, ca证书, ca私钥 := 创建完整TLS服务(t)
+	上游证书 := 签发上游测试证书(t, ca证书, ca私钥, "example.com")
+
+	// mock Router：建立上游 TLS 服务器，返回 101 响应
+	mock := &mock路由器{
+		处理函数: func(conn net.Conn) {
+			tls配置 := &tls.Config{
+				Certificates: []tls.Certificate{上游证书},
+				NextProtos:   []string{"http/1.1"},
+			}
+			tls服务端 := tls.Server(conn, tls配置)
+			defer tls服务端.Close()
+			if err := tls服务端.Handshake(); err != nil {
+				return
+			}
+			读取器 := bufio.NewReader(tls服务端)
+			req, err := http.ReadRequest(读取器)
+			if err != nil {
+				return
+			}
+			// 返回 101 Switching Protocols
+			tls服务端.Write([]byte("HTTP/1.1 101 Switching Protocols\r\n" +
+				"Upgrade: websocket\r\n" +
+				"Connection: Upgrade\r\n\r\n"))
+			req.Body.Close()
+			// 读取客户端可能发送的数据，避免连接关闭时产生RST
+			tls服务端.SetReadDeadline(time.Now().Add(2 * time.Second))
+			缓冲区 := make([]byte, 4096)
+			tls服务端.Read(缓冲区)
+		},
+	}
+
+	// 使用错误写入连接包装客户端连接，在Write时返回错误
+	客户端端, 服务端端 := net.Pipe()
+	defer 客户端端.Close()
+	错误客户端 := &错误写入连接{Conn: 服务端端, 错误: errors.New("模拟客户端写入失败")}
+	defer 错误客户端.Close()
+
+	处理器 := 新建HTTP1处理器(svc, mock, adapter.InboundContext{})
+
+	req := &http.Request{
+		Method: "GET",
+		Host:   "example.com",
+		URL:    &url.URL{Path: "/ws", Host: "example.com"},
+		Header: make(http.Header),
+	}
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Connection", "Upgrade")
+
+	错误 := make(chan error, 1)
+	go func() {
+		错误 <- 处理器.处理WebSocket(context.Background(), 错误客户端, bufio.NewReader(错误客户端), req)
+	}()
+
+	select {
+	case err := <-错误:
+		if err == nil {
+			t.Error("期望转发101响应失败返回错误")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("超时：处理WebSocket 未在转发101响应失败后返回")
+	}
+}
+
+// 错误写入连接 包装net.Conn，在Write时返回错误
+type 错误写入连接 struct {
+	net.Conn
+	错误 error
+}
+
+func (c *错误写入连接) Write(b []byte) (int, error) {
+	return 0, c.错误
 }
 
 // newBufioReader 创建 bufio.Reader（辅助函数）
