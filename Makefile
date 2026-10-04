@@ -279,6 +279,15 @@ libbox-apple:
 # 等价于 libbox-ios，作为 MITM 专项构建目标提供语义化入口
 libbox-mitm: libbox-ios
 
+# mitm-ios-deb 构建 iOS 越狱版 .deb 安装包
+# 对应开发文档 Phase 16：越狱版本支持。
+# 构建流程：交叉编译 darwin/arm64 → 生成 CA 证书 → 组装 deb 包
+# 产物：deploy/ios/output/com.sb1.mitm_1.11.0-1_iphoneos-arm64.deb
+# 适用环境：多巴胺 Dopamine / palera1n / checkra1n 等越狱设备
+# 安装方式：Filza/Sileo/Cydia 直接安装，无需电脑
+mitm-ios-deb:
+	bash deploy/ios/build-deb.sh
+
 lib_windows:
 	$(SING_FFI) generate --config $(LIBBOX_FFI_CONFIG) --platform-type csharp
 

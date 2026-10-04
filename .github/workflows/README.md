@@ -2,7 +2,7 @@
 
 ## 目录概述
 
-本目录包含 sing-box 分支的全部 CI/CD 工作流，共 5 条流水线，按职责严格划分，触发条件互不重叠。
+本目录包含 sing-box 分支的全部 CI/CD 工作流，共 7 条流水线，按职责严格划分，触发条件互不重叠。
 
 ## 职责划分总表
 
@@ -12,7 +12,9 @@
 | `mitm-test-matrix.yml` | MITM 测试矩阵 | MITM 专项深度测试 | MITM 核心代码修改（protocol/mitm/、option/mitm.go、libbox/mitm.go） |
 | `full-test-matrix.yml` | 全项目测试矩阵 | 全项目深度测试（非 MITM） | 非 MITM 核心 Go 代码修改 |
 | `libbox-build.yml` | Libbox 构建（iOS 设备专用） | Libbox.framework 构建 | libbox 相关代码修改 |
-| `ios-deploy.yml` | iOS 部署包构建 | 越狱部署包打包 | deploy/ios 配置或 CA 生成命令修改 |
+| `ios-deploy.yml` | iOS 部署包构建（macOS） | 越狱部署包打包（真正 iOS 二进制 + ldid 签名） | deploy/ios 配置或 CA 生成命令修改 |
+| `mitm-ios-deb.yml` | MITM iOS 越狱 deb 包构建（Linux） | 越狱 deb 安装包构建（darwin/arm64 交叉编译） | deploy/ios 配置、CA 生成命令、Makefile 修改 |
+| `test.yml` | 跨平台测试 | 3 OS × 2 Go 版本测试矩阵 | 核心代码修改 |
 
 ## 触发规则设计
 
@@ -25,7 +27,8 @@
 | `protocol/mitm/**`、`option/mitm.go` | MITM CI + MITM 测试矩阵 |
 | `daemon/**`、`route/**`、`dns/**` 等非 MITM 核心代码 | MITM CI + 全项目测试矩阵 |
 | `experimental/libbox/**`、`cmd/internal/build_libbox/**` | Libbox 构建（仅） |
-| `deploy/ios/**`、`cmd/sing-box/cmd_generate_mitm_ca.go` | iOS 部署包构建（仅） |
+| `deploy/ios/**`、`cmd/sing-box/cmd_generate_mitm_ca.go` | iOS 部署包构建（macOS）+ MITM iOS 越狱 deb 包构建（Linux） |
+| `Makefile` | MITM iOS 越狱 deb 包构建（Linux） |
 | 任意 `*.yml` 工作流文件 | 仅触发对应工作流自身 |
 | `*.md` 文档 | 不触发任何流水线 |
 
@@ -226,6 +229,48 @@ paths:
 
 ---
 
+### mitm-ios-deb.yml（MITM iOS 越狱 deb 包构建 - Linux 交叉编译）
+
+**职责**：在 Linux 环境下交叉编译 darwin/arm64 二进制，构建 iOS 越狱版 .deb 安装包。与 ios-deploy.yml 的区别：无需 macOS/Xcode，使用纯 Go 交叉编译（CGO_ENABLED=0），构建速度更快，成本更低。
+
+**运行环境**：ubuntu-latest + Go 1.25.5
+
+**触发路径**：
+```yaml
+paths:
+  - deploy/ios/**
+  - cmd/sing-box/cmd_generate_mitm_ca.go
+  - Makefile
+  - .github/workflows/mitm-ios-deb.yml
+```
+
+**执行步骤**：
+1. 安装 dpkg-dev（用于 deb 包验证）
+2. 交叉编译 darwin/arm64 sing-box 二进制（CGO_ENABLED=0）
+3. 验证 Mach-O 格式
+4. 原生构建 linux/amd64 sing-box（用于生成 CA 证书）
+5. 生成 MITM CA 证书（预生成，随包分发）
+6. 执行 build-deb.sh 构建 deb 包
+7. 验证 deb 包内容（二进制、CA 证书、配置文件、LaunchDaemon）
+8. 可选：创建 GitHub Release
+
+**产物**：
+| 产物名 | 格式 | 用途 | 保留期 |
+|---|---|---|---|
+| `mitm-ios-deb` | `.deb` | 越狱设备 .deb 安装包，可通过 Filza/Sileo/Cydia 直接安装 | 30 天 |
+| `sing-box-darwin-arm64` | Mach-O 二进制 | 单独的 darwin/arm64 sing-box 可执行文件 | 30 天 |
+
+**用途说明**：
+- 适用于多巴胺 Dopamine、palera1n、checkra1n 等越狱环境
+- .deb 包可直接在 iOS 设备上安装，无需电脑
+- 预生成 CA 证书随包分发，安装后按提示完成信任设置
+- 支持开机自启（LaunchDaemon）
+- 与 ios-deploy.yml 的区别：本流水线使用 Linux 交叉编译（darwin/arm64），无需 macOS/Xcode/ldid，构建速度更快；ios-deploy.yml 使用真正的 iOS SDK 编译（GOOS=ios）并进行 ldid 伪签名
+
+**预期耗时**：约 3-5 分钟
+
+---
+
 ## 产物总览
 
 | 产物 | 来源工作流 | 格式 | 主要用途 |
@@ -235,9 +280,11 @@ paths:
 | full-coverage-report | full-test-matrix | HTML/out | 全项目覆盖率报告 |
 | singbox-linux-amd64 | full-test-matrix | ELF | 全项目测试通过二进制 |
 | Libbox.framework | libbox-build | framework | iOS App 嵌入框架 |
-| sing-box-mitm-ios-deb | ios-deploy | .deb | 越狱设备安装包 |
+| sing-box-mitm-ios-deb | ios-deploy | .deb | 越狱设备安装包（macOS 构建，真正 iOS 二进制 + ldid 签名） |
 | sing-box-mitm-ios-deploy | ios-deploy | tar.gz | 手动部署包 |
-| sing-box-ios-arm64 | ios-deploy | Mach-O | iOS 单独二进制 |
+| sing-box-ios-arm64 | ios-deploy | Mach-O | iOS 单独二进制（已 ldid 签名） |
+| mitm-ios-deb | mitm-ios-deb | .deb | 越狱设备安装包（Linux 交叉编译，darwin/arm64） |
+| sing-box-darwin-arm64 | mitm-ios-deb | Mach-O | darwin/arm64 单独二进制 |
 
 ## 维护说明
 

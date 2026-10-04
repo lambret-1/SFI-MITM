@@ -22,3 +22,13 @@ CLAUDE.md
 AGENTS.md
 /.claude/
 Frameworks/ Libbox.xcframework/
+
+# iOS 越狱部署构建产物
+deploy/ios/deb/var/jb/usr/bin/sing-box
+deploy/ios/output/
+deploy/ios/bin/
+deploy/ios/ca-out/
+sing-box-darwin-arm64
+sing-box-linux
+sing-box-native
+sing-box-ios

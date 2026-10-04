@@ -1,0 +1,188 @@
+name: MITM iOS 越狱 deb 包构建
+
+on:
+  push:
+    branches:
+      - sing-box
+    paths:
+      # iOS 越狱 deb 包专项：部署配置、CA 生成命令、构建脚本修改时触发
+      - 'deploy/ios/**'
+      - 'cmd/sing-box/cmd_generate_mitm_ca.go'
+      - 'Makefile'
+      - '.github/workflows/mitm-ios-deb.yml'
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: '是否创建 GitHub Release'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+concurrency:
+  group: mitm-ios-deb-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.25.5"
+  DEPLOY_DIR: "deploy/ios"
+  DEB_FILE: "com.sb1.mitm_1.11.0-1_iphoneos-arm64.deb"
+
+jobs:
+  build-mitm-ios-deb:
+    name: 构建 MITM iOS 越狱 deb 包（Linux 交叉编译）
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 显示 Go 版本
+        run: go version
+
+      - name: 安装依赖工具
+        run: |
+          echo "=== 安装 dpkg-dev（用于 deb 包验证）==="
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dpkg-dev file
+          echo "=== 验证工具 ==="
+          dpkg-deb --version || echo "dpkg-deb 已安装"
+          file --version
+
+      - name: 交叉编译 darwin/arm64 二进制
+        run: |
+          echo "=== 交叉编译 darwin/arm64 ==="
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 \
+            go build \
+            -o sing-box-darwin-arm64 \
+            -trimpath \
+            -ldflags="-s -w" \
+            ./cmd/sing-box
+          echo "=== 编译完成 ==="
+          ls -lh sing-box-darwin-arm64
+          file sing-box-darwin-arm64
+
+      - name: 验证二进制格式
+        run: |
+          echo "=== 验证 Mach-O 格式 ==="
+          FILE_OUTPUT=$(file sing-box-darwin-arm64)
+          echo "$FILE_OUTPUT"
+          echo "$FILE_OUTPUT" | grep -q "Mach-O 64-bit" && echo "✅ Mach-O 64-bit 格式正确" || { echo "❌ 格式错误"; exit 1; }
+          echo "$FILE_OUTPUT" | grep -q "arm64" && echo "✅ arm64 架构正确" || { echo "❌ 架构错误"; exit 1; }
+          test -s sing-box-darwin-arm64 && echo "✅ 二进制非空" || { echo "❌ 二进制为空"; exit 1; }
+
+      - name: 原生构建（生成 CA 证书）
+        run: |
+          echo "=== 原生构建 linux/amd64（用于生成 CA 证书）==="
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build \
+            -o sing-box-linux \
+            -trimpath \
+            -ldflags="-s -w" \
+            ./cmd/sing-box
+          echo "=== 生成 MITM CA 证书 ==="
+          mkdir -p ca-out
+          ./sing-box-linux generate mitm-ca \
+            --name "SB1 MITM CA" \
+            --validity 3650 \
+            --output ca-out
+          ls -la ca-out/
+          echo "=== 验证 CA 是合法 CA 证书 ==="
+          openssl x509 -in ca-out/ca.pem -text | grep -A1 "Basic Constraints" | head -5
+          openssl x509 -in ca-out/ca.pem -noout -subject -dates
+
+      - name: 执行 build-deb.sh 构建 deb 包
+        run: |
+          echo "=== 执行 build-deb.sh ==="
+          bash ${{ env.DEPLOY_DIR }}/build-deb.sh
+          echo "=== 构建完成 ==="
+          ls -lh ${{ env.DEPLOY_DIR }}/output/
+
+      - name: 验证 deb 包
+        run: |
+          echo "=== 验证 deb 包 ==="
+          DEB_PATH="${{ env.DEPLOY_DIR }}/output/${{ env.DEB_FILE }}"
+          ls -lh "$DEB_PATH"
+          echo "=== deb 包信息 ==="
+          dpkg-deb --info "$DEB_PATH"
+          echo "=== deb 包内容 ==="
+          dpkg-deb --contents "$DEB_PATH"
+          echo "=== 验证关键文件存在 ==="
+          dpkg-deb --contents "$DEB_PATH" | grep -q "var/jb/usr/bin/sing-box" && echo "✅ sing-box 二进制存在" || { echo "❌ sing-box 二进制缺失"; exit 1; }
+          dpkg-deb --contents "$DEB_PATH" | grep -q "var/jb/etc/sing-box/ca.pem" && echo "✅ CA 证书存在" || { echo "❌ CA 证书缺失"; exit 1; }
+          dpkg-deb --contents "$DEB_PATH" | grep -q "var/jb/etc/sing-box/ca.key" && echo "✅ CA 私钥存在" || { echo "❌ CA 私钥缺失"; exit 1; }
+          dpkg-deb --contents "$DEB_PATH" | grep -q "var/jb/etc/sing-box/config.json" && echo "✅ 配置文件存在" || { echo "❌ 配置文件缺失"; exit 1; }
+          dpkg-deb --contents "$DEB_PATH" | grep -q "var/jb/Library/LaunchDaemons/com.sb1.mitm.plist" && echo "✅ LaunchDaemon 存在" || { echo "❌ LaunchDaemon 缺失"; exit 1; }
+
+      - name: 复制 deb 包到工作区根目录
+        run: |
+          cp "${{ env.DEPLOY_DIR }}/output/${{ env.DEB_FILE }}" "${{ env.DEB_FILE }}"
+          ls -lh "${{ env.DEB_FILE }}"
+
+      - name: 上传 deb 包 Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mitm-ios-deb
+          path: ${{ env.DEB_FILE }}
+          retention-days: 30
+
+      - name: 上传单独二进制 Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sing-box-darwin-arm64
+          path: sing-box-darwin-arm64
+          retention-days: 30
+
+      - name: 创建 GitHub Release
+        if: ${{ github.event.inputs.create_release == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mitm-ios-deb-${{ github.sha }}
+          name: "MITM iOS 越狱 deb 包 ${{ github.sha }}"
+          body: |
+            ## SB1 MITM iOS 越狱 deb 安装包
+
+            **构建信息：**
+            - Commit: ${{ github.sha }}
+            - Go 版本: ${{ env.GO_VERSION }}
+            - 目标平台: darwin/arm64（可在 iOS 越狱设备上运行）
+            - 构建环境: Ubuntu Linux（交叉编译，无需 macOS）
+            - 构建时间: ${{ github.event.head_commit.timestamp }}
+
+            **安装包下载：**
+            - `com.sb1.mitm_1.11.0-1_iphoneos-arm64.deb` — .deb 安装包（推荐，无需电脑，Filza/Sileo/Cydia 直接安装）
+
+            **支持的越狱环境：**
+            - 多巴胺 Dopamine (iOS 15.0-16.5.1, arm64e)
+            - palera1n (iOS 15.0-16.x, arm64)
+            - checkra1n (iOS 12.0-14.8, arm64)
+            - 其他基于 Substitute/libhooker 的越狱环境
+
+            **.deb 安装方式（无需电脑）：**
+            1. 在 iOS 设备上用 Safari 下载 .deb 文件
+            2. 打开 Filza 文件管理器，找到下载的 .deb
+            3. 点击文件，选择「安装」
+            4. CA 证书已随包安装，直接按提示完成信任设置
+            5. 终端执行: launchctl load /var/jb/Library/LaunchDaemons/com.sb1.mitm.plist
+
+            **deb 包内容：**
+            - `/var/jb/usr/bin/sing-box` — 预编译二进制（darwin/arm64）
+            - `/var/jb/etc/sing-box/config.json` — TUN + MITM 配置模板
+            - `/var/jb/etc/sing-box/ca.pem` — 预生成的 MITM CA 根证书
+            - `/var/jb/etc/sing-box/ca.key` — 预生成的 MITM CA 私钥
+            - `/var/jb/Library/LaunchDaemons/com.sb1.mitm.plist` — 开机自启配置
+            - DEBIAN/postinst — 安装后配置脚本（设置权限、复制 CA 到用户目录）
+            - DEBIAN/prerm — 卸载前脚本（停止服务、卸载 LaunchDaemon）
+          files: |
+            ${{ env.DEB_FILE }}
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
