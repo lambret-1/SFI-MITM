@@ -35,31 +35,44 @@ jobs:
       matrix:
         include:
           - test_name: "配置解析(JSON)"
-            test_path: "./protocol/mitm/ -run Test集成_配置解析|TestNewService_缺少|TestRegisterService"
+            test_package: "./protocol/mitm/"
+            test_run: "Test集成_配置解析|TestNewService_缺少|TestRegisterService"
           - test_name: "Service生命周期"
-            test_path: "./protocol/mitm/ -run TestNewService|TestStart_生命周期|TestFromContext"
+            test_package: "./protocol/mitm/"
+            test_run: "TestNewService|TestStart_生命周期|TestFromContext"
           - test_name: "CA证书管理"
-            test_path: "./protocol/mitm/ -run TestNewService_加载合法CA|TestNewService_非CA证书被拒绝|TestNewService_缺少证书路径|TestNewService_缺少私钥路径"
+            test_package: "./protocol/mitm/"
+            test_run: "TestNewService_加载合法CA|TestNewService_非CA证书被拒绝|TestNewService_缺少证书路径|TestNewService_缺少私钥路径"
           - test_name: "动态证书签发"
-            test_path: "./protocol/mitm/ -run Test签发叶子证书|Test证书缓存_LRU"
+            test_package: "./protocol/mitm/"
+            test_run: "Test签发叶子证书|Test证书缓存_LRU"
           - test_name: "TLS终止握手"
-            test_path: "./protocol/mitm/ -run Test集成_TLS终止_完整握手|Test读取客户端问候_SNI"
+            test_package: "./protocol/mitm/"
+            test_run: "Test集成_TLS终止_完整握手|Test读取客户端问候_SNI"
           - test_name: "HTTP1.1代理"
-            test_path: "./protocol/mitm/ -run TestHTTP"
+            test_package: "./protocol/mitm/"
+            test_run: "TestHTTP"
           - test_name: "Router分流"
-            test_path: "./protocol/mitm/ -run Test路由"
+            test_package: "./protocol/mitm/"
+            test_run: "Test路由"
           - test_name: "WebSocket中继"
-            test_path: "./protocol/mitm/ -run TestWebSocket"
+            test_package: "./protocol/mitm/"
+            test_run: "TestWebSocket"
           - test_name: "日志缓冲区"
-            test_path: "./protocol/mitm/ -run Test日志"
+            test_package: "./protocol/mitm/"
+            test_run: "Test日志"
           - test_name: "重写引擎"
-            test_path: "./protocol/mitm/ -run Test集成_重写引擎"
+            test_package: "./protocol/mitm/"
+            test_run: "Test集成_重写引擎"
           - test_name: "失败绕过策略"
-            test_path: "./protocol/mitm/ -run Test集成_失败时绕过策略"
+            test_package: "./protocol/mitm/"
+            test_run: "Test集成_失败时绕过策略"
           - test_name: "上游超时"
-            test_path: "./protocol/mitm/ -run Test集成_上游超时"
+            test_package: "./protocol/mitm/"
+            test_run: "Test集成_上游超时"
           - test_name: "域名匹配器"
-            test_path: "./protocol/mitm/ -run Test域名匹配器"
+            test_package: "./protocol/mitm/"
+            test_run: "Test域名匹配器"
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -80,7 +93,7 @@ jobs:
       - name: 运行 ${{ matrix.test_name }} 测试
         run: |
           echo "=== 测试维度：${{ matrix.test_name }} ==="
-          go test -v -count=1 -timeout 120s ${{ matrix.test_path }} 2>&1
+          go test -v -count=1 -timeout 120s "${{ matrix.test_package }}" -run "${{ matrix.test_run }}" 2>&1
         env:
           MITM_TEST_CA_CERT: /tmp/mitm-ca.pem
           MITM_TEST_CA_KEY: /tmp/mitm-ca.key
