@@ -699,7 +699,7 @@ def run_checks(doc_path: Path, core_path: Path, client_path: Path) -> CheckResul
     content = doc_path.read_text(encoding='utf-8', errors='ignore')
 
     # 检查入站类型
-    inbound_types = ['tun', 'redirect', 'tproxy', 'direct', 'socks', 'http', 'mixed',
+    inbound_types = ['tun', 'redirect', 'direct', 'socks', 'http', 'mixed',
                      'shadowsocks', 'snell', 'vmess', 'trojan', 'naive', 'shadowtls',
                      'vless', 'anytls', 'hysteria', 'tuic', 'hysteria2', 'tailcat', 'cloudflare']
     doc_inbounds = [t for t in inbound_types if re.search(rf'\b{re.escape(t)}\b', content, re.IGNORECASE)]

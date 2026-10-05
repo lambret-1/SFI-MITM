@@ -703,7 +703,6 @@ sing-box 配置是一个 JSON 对象，包含以下顶层字段（对应 `option
 |------|------|-----------|
 | `tun` | TUN 虚拟网卡入站，iOS Network Extension 必须使用 | ✅ 核心 |
 | `redirect` | 重定向入站（透明代理） | ❌ 仅 Linux/macOS |
-| `tproxy` | 透明代理入站 | ❌ 仅 Linux |
 | `direct` | 直接入站 | ✅ |
 | `socks` | SOCKS5 代理入站 | ✅ |
 | `http` | HTTP 代理入站 | ✅ |
