@@ -34,16 +34,12 @@ public struct MITMRewriteView: View {
         .listStyle(.insetGrouped)
         .navigationTitle("重写规则")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    editingRule = MITMRewriteRule(name: "新规则")
-                    showEditor = true
-                } label: {
-                    Image(systemName: "plus")
-                }
-            }
-        }
+        .navigationBarItems(trailing: Button {
+            editingRule = MITMRewriteRule(name: "新规则")
+            showEditor = true
+        } label: {
+            Image(systemName: "plus")
+        })
         .sheet(isPresented: $showEditor) {
             if let rule = editingRule {
                 MITMRewriteRuleEditor(rule: rule) { updatedRule in
