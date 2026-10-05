@@ -13,4 +13,20 @@ public struct RemoteServer: Identifiable, Codable, Hashable {
         self.url = url
         self.secret = secret
     }
+
+    /// 生成连接URL（添加http://前缀）
+    static func connectURL(_ urlString: String) -> String {
+        var value = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        while value.hasSuffix("/") {
+            value.removeLast()
+        }
+        if value.isEmpty {
+            return ""
+        }
+        let lowercased = value.lowercased()
+        if lowercased.hasPrefix("http://") || lowercased.hasPrefix("https://") {
+            return value
+        }
+        return "http://" + value
+    }
 }
