@@ -1,265 +1,762 @@
 {
-  "total_params": 231,
-  "params_in_doc_only": [
-    "Host",
-    "acme",
-    "alter_id",
-    "anytls",
-    "auth_user",
-    "authenticated_length",
-    "auto_detect_interface",
-    "auto_route",
-    "available",
-    "block",
-    "body",
-    "body_replace",
-    "bool",
-    "bridge",
-    "bypass",
-    "ca",
-    "cache_capacity",
-    "cache_file",
-    "cache_id",
-    "certificate_providers",
-    "clash_api",
-    "client",
-    "client_subnet",
-    "close",
-    "cloudflare",
-    "configuration",
-    "connect",
-    "connections",
-    "debug",
-    "default",
-    "default_mode",
-    "detour",
-    "direct",
-    "disable_cache",
-    "disable_expire",
-    "disconnect",
-    "dns",
-    "dns_handler",
-    "dns_mode",
-    "domain",
-    "domain_keyword",
-    "domain_regex",
-    "domain_suffix",
-    "download_detour",
-    "enabled",
-    "endpoint_independent_nat",
-    "endpoints",
-    "exclude_interface",
-    "exclude_mptcp",
-    "experimental",
-    "external_controller",
-    "fakeip",
-    "false",
-    "final",
-    "fingerprint",
-    "flags",
-    "format",
-    "gateway",
-    "gc_percent",
-    "global_padding",
-    "group",
-    "gvisor",
-    "headers",
-    "http",
-    "http_clients",
-    "hysteria",
-    "hysteria2",
-    "identifier",
-    "ifaddrs",
-    "inbounds",
-    "include_interface",
-    "independent_cache",
-    "index",
-    "inet4_range",
-    "inet6_range",
-    "insecure",
-    "int",
-    "interface_name",
-    "interval",
-    "invert",
-    "ip_cidr",
-    "ip_is_private",
-    "ip_version",
-    "level",
-    "libbox",
-    "listen",
-    "listen_port",
-    "local",
-    "log",
-    "logs",
-    "loopback_address",
-    "mask",
-    "match",
-    "max_body_size",
-    "max_fds",
-    "message",
-    "metered",
-    "mixed",
-    "mtu",
-    "naive",
-    "network",
-    "network_namespaces",
-    "network_quality",
-    "next",
-    "ntp",
-    "object",
-    "on_error",
-    "openconnect",
-    "openvpn",
-    "options",
-    "outbound",
-    "outbounds",
-    "output",
-    "override_android_vpn",
-    "path_prefix",
-    "pause",
-    "port",
-    "port_range",
-    "prefix",
-    "process_name",
-    "process_path",
-    "protocol",
-    "redirect",
-    "reject",
-    "remote",
-    "request_header",
-    "request_header_delete",
-    "response_header",
-    "response_header_delete",
-    "reverse_mapping",
-    "rewrite",
-    "rewrite_path",
-    "rewrite_url",
-    "route",
-    "route_address",
-    "route_exclude_address",
-    "route_options",
-    "rule_set",
-    "rules",
-    "secret",
-    "selector",
-    "server_name",
-    "services",
-    "shadowsocks",
-    "shadowtls",
-    "shared",
-    "snell",
-    "sniff",
-    "sniff_override_destination",
-    "sniff_timeout",
-    "socks",
-    "source_ip_cidr",
-    "source_ip_is_private",
-    "source_port",
-    "source_port_range",
-    "ssh",
-    "stack",
-    "start",
-    "stats",
-    "status",
-    "store_fakeip",
-    "store_mode",
-    "store_rdrc",
-    "store_selected",
-    "strategy",
-    "strict_route",
-    "string",
-    "stun",
-    "subtitle",
-    "system",
-    "tailscale",
-    "timestamp",
-    "title",
-    "tls",
-    "tolerance",
-    "tor",
-    "transport",
-    "trojan",
-    "true",
-    "tuic",
-    "tun",
-    "udp_disable_domain_unification",
-    "unknown",
-    "upstream_timeout",
-    "urltest",
-    "usbip",
-    "utls",
-    "v2ray_api",
-    "vless",
-    "vmess",
-    "wake"
+  "errors": [],
+  "warnings": [
+    "[顶层字段] 必须字段 `inbounds` 未在内核 option 中找到定义",
+    "[顶层字段] 必须字段 `outbounds` 未在内核 option 中找到定义",
+    "[顶层字段] 文档包含不适用 SFI 的字段 `ntp`（iOS 系统自动时间同步，无需配置）",
+    "[顶层字段] 文档包含不适用 SFI 的字段 `certificate`（证书管理，SFI 客户端不直接使用）",
+    "[顶层字段] 文档包含不适用 SFI 的字段 `certificate_providers`（ACME 等证书提供者，服务端功能）",
+    "[顶层字段] 文档包含不适用 SFI 的字段 `http_clients`（高级 HTTP 客户端配置，SFI 不使用）",
+    "[顶层字段] 文档包含不适用 SFI 的字段 `network_namespaces`（Linux 网络命名空间，iOS 不支持）",
+    "[顶层字段] 文档包含不适用 SFI 的字段 `endpoints`（WireGuard 端点，SFI 使用出站而非端点）"
   ],
-  "params_in_core_only": [
-    "content",
-    "device_type",
-    "device_unique_id",
-    "directory",
-    "host",
-    "platform_version",
-    "priority",
-    "psk",
-    "public_key",
-    "realm_id",
-    "server_disco_key",
-    "server_public_key",
-    "server_url",
-    "service",
-    "stun_servers",
-    "text",
-    "token",
-    "userkey",
-    "users",
-    "version"
-  ],
-  "params_in_both": [
-    "action",
-    "address",
-    "addresses",
-    "certificate",
-    "find",
-    "method",
-    "mode",
-    "name",
-    "password",
-    "path",
-    "private_key",
-    "replace",
-    "security",
-    "server",
-    "server_port",
-    "servers",
-    "tag",
-    "type",
-    "url",
-    "uuid"
-  ],
-  "params_missing_client": [
-    "password"
-  ],
-  "type_mismatch": [],
-  "enum_mismatch": [],
-  "registry_mismatch": [],
-  "api_mismatch": [
-    {
-      "name": "registerMITMService",
-      "doc_signature": "func registerMITMService(registry *service.Registry)",
-      "status": "未在内核找到"
+  "results": {
+    "top_level": {
+      "required": [
+        {
+          "field": "inbounds",
+          "required": true,
+          "description": "入站配置列表（iOS 必须使用 tun）",
+          "in_doc": true,
+          "in_core": false,
+          "in_client": false
+        },
+        {
+          "field": "outbounds",
+          "required": true,
+          "description": "出站配置列表（direct/selector/各协议）",
+          "in_doc": true,
+          "in_core": false,
+          "in_client": false
+        }
+      ],
+      "optional": [
+        {
+          "field": "log",
+          "required": false,
+          "description": "日志配置（level/output/timestamp）",
+          "in_doc": true,
+          "in_core": false,
+          "in_client": false
+        },
+        {
+          "field": "dns",
+          "required": false,
+          "description": "DNS 配置（servers/rules/final/strategy）",
+          "in_doc": true,
+          "in_core": false,
+          "in_client": true
+        },
+        {
+          "field": "route",
+          "required": false,
+          "description": "路由配置（rules/final/auto_detect_interface）",
+          "in_doc": true,
+          "in_core": false,
+          "in_client": false
+        },
+        {
+          "field": "services",
+          "required": false,
+          "description": "服务配置列表（api/mitm）",
+          "in_doc": true,
+          "in_core": false,
+          "in_client": true
+        },
+        {
+          "field": "experimental",
+          "required": false,
+          "description": "实验性功能（clash_api/v2ray_api/cache_file）",
+          "in_doc": true,
+          "in_core": false,
+          "in_client": false
+        }
+      ],
+      "not_applicable": [
+        {
+          "field": "ntp",
+          "reason": "iOS 系统自动时间同步，无需配置",
+          "in_doc": true
+        },
+        {
+          "field": "certificate",
+          "reason": "证书管理，SFI 客户端不直接使用",
+          "in_doc": true
+        },
+        {
+          "field": "certificate_providers",
+          "reason": "ACME 等证书提供者，服务端功能",
+          "in_doc": true
+        },
+        {
+          "field": "http_clients",
+          "reason": "高级 HTTP 客户端配置，SFI 不使用",
+          "in_doc": true
+        },
+        {
+          "field": "network_namespaces",
+          "reason": "Linux 网络命名空间，iOS 不支持",
+          "in_doc": true
+        },
+        {
+          "field": "endpoints",
+          "reason": "WireGuard 端点，SFI 使用出站而非端点",
+          "in_doc": true
+        }
+      ],
+      "missing_required": []
     },
-    {
-      "name": "NewService",
-      "doc_signature": "func NewService(\n ctx context.Context,\n logger log.ContextLogger,\n tag string,\n options option.MITMServiceOptions,\n)",
-      "status": "未在内核找到"
+    "inbounds": {
+      "sfi_used": [
+        {
+          "type": "tun",
+          "required": true,
+          "description": "TUN 虚拟网卡，iOS Network Extension 必须使用",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "socks",
+          "required": false,
+          "description": "SOCKS5 本地代理入站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "http",
+          "required": false,
+          "description": "HTTP 本地代理入站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": true
+        },
+        {
+          "type": "mixed",
+          "required": false,
+          "description": "SOCKS+HTTP 混合入站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "direct",
+          "required": false,
+          "description": "直接入站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": true
+        }
+      ],
+      "not_applicable": [
+        {
+          "type": "redirect",
+          "reason": "Linux/macOS 透明代理，iOS 不支持",
+          "in_doc": true
+        },
+        {
+          "type": "tproxy",
+          "reason": "Linux 透明代理，iOS 不支持",
+          "in_doc": false
+        },
+        {
+          "type": "shadowsocks",
+          "reason": "服务端入站，SFI 作为客户端不使用",
+          "in_doc": true
+        },
+        {
+          "type": "snell",
+          "reason": "服务端入站，SFI 作为客户端不使用",
+          "in_doc": true
+        },
+        {
+          "type": "vmess",
+          "reason": "服务端入站，SFI 作为客户端不使用",
+          "in_doc": true
+        },
+        {
+          "type": "trojan",
+          "reason": "服务端入站，SFI 作为客户端不使用",
+          "in_doc": true
+        },
+        {
+          "type": "naive",
+          "reason": "服务端入站，SFI 作为客户端不使用",
+          "in_doc": true
+        },
+        {
+          "type": "shadowtls",
+          "reason": "服务端入站，SFI 作为客户端不使用",
+          "in_doc": true
+        },
+        {
+          "type": "vless",
+          "reason": "服务端入站，SFI 作为客户端不使用",
+          "in_doc": true
+        },
+        {
+          "type": "anytls",
+          "reason": "服务端入站，SFI 作为客户端不使用",
+          "in_doc": true
+        },
+        {
+          "type": "hysteria",
+          "reason": "服务端入站，SFI 作为客户端不使用",
+          "in_doc": true
+        },
+        {
+          "type": "hysteria2",
+          "reason": "服务端入站，SFI 作为客户端不使用",
+          "in_doc": true
+        },
+        {
+          "type": "tuic",
+          "reason": "服务端入站，SFI 作为客户端不使用",
+          "in_doc": true
+        },
+        {
+          "type": "cloudflare",
+          "reason": "服务端入站，SFI 作为客户端不使用",
+          "in_doc": true
+        }
+      ],
+      "missing_required": []
     },
-    {
-      "name": "LibboxGenerateMITMCA",
-      "doc_signature": "func LibboxGenerateMITMCA(certificatePath string, privateKeyPath string)",
-      "status": "未在内核找到"
+    "outbounds": {
+      "sfi_used": [
+        {
+          "type": "direct",
+          "required": true,
+          "description": "直连出站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": true
+        },
+        {
+          "type": "block",
+          "required": false,
+          "description": "阻断出站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "selector",
+          "required": true,
+          "description": "手动选择出站组，UI 切换节点",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": true
+        },
+        {
+          "type": "urltest",
+          "required": false,
+          "description": "自动测速选择最快节点",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": true
+        },
+        {
+          "type": "shadowsocks",
+          "required": true,
+          "description": "Shadowsocks 协议出站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "vmess",
+          "required": true,
+          "description": "VMess 协议出站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "trojan",
+          "required": true,
+          "description": "Trojan 协议出站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "vless",
+          "required": true,
+          "description": "VLESS 协议出站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "socks",
+          "required": false,
+          "description": "SOCKS5 代理出站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "http",
+          "required": false,
+          "description": "HTTP 代理出站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": true
+        },
+        {
+          "type": "shadowtls",
+          "required": false,
+          "description": "ShadowTLS 协议出站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "hysteria",
+          "required": false,
+          "description": "Hysteria 协议出站（QUIC）",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "hysteria2",
+          "required": false,
+          "description": "Hysteria2 协议出站（QUIC）",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "tuic",
+          "required": false,
+          "description": "TUIC 协议出站（QUIC）",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "naive",
+          "required": false,
+          "description": "NaiveProxy 协议出站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "anytls",
+          "required": false,
+          "description": "AnyTLS 协议出站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "snell",
+          "required": false,
+          "description": "Snell 协议出站（Surge）",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "tor",
+          "required": false,
+          "description": "Tor 出站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "ssh",
+          "required": false,
+          "description": "SSH 隧道出站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        },
+        {
+          "type": "bridge",
+          "required": false,
+          "description": "桥接出站",
+          "in_doc": true,
+          "in_core": true,
+          "in_client": false
+        }
+      ],
+      "missing_required": []
+    },
+    "dns": {
+      "documented": [
+        {
+          "param": "servers",
+          "required": true,
+          "description": "DNS 服务器列表",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "rules",
+          "required": false,
+          "description": "DNS 规则列表",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "final",
+          "required": true,
+          "description": "最终 DNS 服务器",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "strategy",
+          "required": false,
+          "description": "DNS 解析策略（ipv4_only/ipv6_only/prefer_ipv4）",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "disable_cache",
+          "required": false,
+          "description": "禁用 DNS 缓存",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "disable_expire",
+          "required": false,
+          "description": "禁用 DNS 缓存过期",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "independent_cache",
+          "required": false,
+          "description": "独立 DNS 缓存",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "reverse_mapping",
+          "required": false,
+          "description": "反向 DNS 映射",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "fakeip",
+          "required": false,
+          "description": "FakeIP 配置",
+          "in_doc": true,
+          "in_core": false
+        }
+      ],
+      "missing_required": []
+    },
+    "route": {
+      "documented": [
+        {
+          "param": "rules",
+          "required": false,
+          "description": "路由规则列表",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "rule_set",
+          "required": false,
+          "description": "路由规则集",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "final",
+          "required": true,
+          "description": "最终出站",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "auto_detect_interface",
+          "required": false,
+          "description": "自动检测出口网卡",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "auto_route",
+          "required": false,
+          "description": "自动路由（全局流量接管）",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "default_interface",
+          "required": false,
+          "description": "默认出口网卡",
+          "in_doc": false,
+          "in_core": false
+        },
+        {
+          "param": "endpoint_independent_nat",
+          "required": false,
+          "description": "端点无关 NAT",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "exclude_interface",
+          "required": false,
+          "description": "排除网卡列表",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "exclude_routable",
+          "required": false,
+          "description": "排除可路由地址",
+          "in_doc": false,
+          "in_core": false
+        }
+      ],
+      "missing_required": []
+    },
+    "experimental": {
+      "documented": [
+        {
+          "param": "clash_api",
+          "required": true,
+          "description": "Clash 兼容 API（供第三方 GUI 使用）",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "v2ray_api",
+          "required": true,
+          "description": "V2Ray 兼容 API（流量统计）",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "cache_file",
+          "required": true,
+          "description": "缓存文件（保存节点测速/选择状态）",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "debug",
+          "required": false,
+          "description": "调试 API（pprof 性能分析）",
+          "in_doc": true,
+          "in_core": false
+        }
+      ],
+      "missing_required": []
+    },
+    "services": {
+      "documented": [
+        {
+          "type": "api",
+          "required": true,
+          "description": "sing-box 原生 API 服务",
+          "in_doc": true,
+          "in_core": true
+        },
+        {
+          "type": "mitm",
+          "required": true,
+          "description": "MITM HTTPS 中间人攻击服务（本项目核心）",
+          "in_doc": true,
+          "in_core": true
+        },
+        {
+          "type": "clashapi",
+          "required": false,
+          "description": "Clash API 服务（已废弃，用 experimental.clash_api）",
+          "in_doc": false,
+          "in_core": false
+        },
+        {
+          "type": "v2ray-api",
+          "required": false,
+          "description": "V2Ray API 服务（已废弃，用 experimental.v2ray_api）",
+          "in_doc": false,
+          "in_core": false
+        }
+      ],
+      "missing_required": []
+    },
+    "tun": {
+      "documented": [
+        {
+          "param": "type",
+          "required": true,
+          "description": "入站类型，必须为 tun",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "tag",
+          "required": true,
+          "description": "入站标签",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "interface_name",
+          "required": false,
+          "description": "虚拟网卡名称",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "mtu",
+          "required": false,
+          "description": "最大传输单元",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "gso",
+          "required": false,
+          "description": "通用分段卸载",
+          "in_doc": false,
+          "in_core": false
+        },
+        {
+          "param": "address",
+          "required": true,
+          "description": "虚拟网卡 IP 地址",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "stack",
+          "required": true,
+          "description": "协议栈（gvisor/system）",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "route_address",
+          "required": false,
+          "description": "路由地址列表",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "route_exclude_address",
+          "required": false,
+          "description": "排除路由地址",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "auto_route",
+          "required": false,
+          "description": "自动路由",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "strict_route",
+          "required": false,
+          "description": "严格路由",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "endpoint_independent_nat",
+          "required": false,
+          "description": "端点无关 NAT",
+          "in_doc": true,
+          "in_core": false
+        },
+        {
+          "param": "udp_timeout",
+          "required": false,
+          "description": "UDP 超时时间",
+          "in_doc": false,
+          "in_core": false
+        }
+      ],
+      "missing_required": []
+    },
+    "api": {
+      "documented": [
+        {
+          "method": "LibboxSetup",
+          "description": "初始化 libbox 服务",
+          "in_doc": true,
+          "in_client": true
+        },
+        {
+          "method": "LibboxNewCommandServer",
+          "description": "创建命令服务器",
+          "in_doc": true,
+          "in_client": true
+        },
+        {
+          "method": "LibboxNewStandaloneCommandClient",
+          "description": "创建独立命令客户端",
+          "in_doc": true,
+          "in_client": true
+        },
+        {
+          "method": "LibboxSetXPCDialer",
+          "description": "设置 XPC 拨号器",
+          "in_doc": true,
+          "in_client": true
+        },
+        {
+          "method": "LibboxCheckConfig",
+          "description": "校验配置",
+          "in_doc": true,
+          "in_client": true
+        },
+        {
+          "method": "LibboxFormatConfig",
+          "description": "格式化配置",
+          "in_doc": true,
+          "in_client": true
+        },
+        {
+          "method": "LibboxGenerateMITMCA",
+          "description": "生成 MITM CA 证书",
+          "in_doc": true,
+          "in_client": true
+        }
+      ],
+      "missing_required": []
+    },
+    "client_usage": {
+      "top_level": [
+        "dns",
+        "services"
+      ],
+      "inbound_types": [
+        "direct",
+        "http"
+      ],
+      "outbound_types": [
+        "direct",
+        "http",
+        "selector",
+        "urltest"
+      ],
+      "api_methods": [
+        "LibboxCheckConfig",
+        "LibboxFormatConfig",
+        "LibboxGenerateMITMCA",
+        "LibboxNewCommandServer",
+        "LibboxNewStandaloneCommandClient",
+        "LibboxSetXPCDialer",
+        "LibboxSetup"
+      ]
     }
-  ],
-  "errors": 0,
-  "warnings": 153
+  }
 }
