@@ -54,7 +54,7 @@ public struct MITMView: View {
                     )
                     statusRow(
                         title: "活跃连接",
-                        value: "\(manager.runtimeStatus.activeConnections)",
+                        value: manager.runtimeStatus.activeConnections >= 0 ? "\(manager.runtimeStatus.activeConnections)" : "未知",
                         color: .primary
                     )
                     // MITM 日志查看入口

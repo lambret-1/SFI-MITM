@@ -123,25 +123,28 @@ public final class MITMServiceManager: ObservableObject {
 
     // MARK: - 运行状态查询
 
-    /// 刷新 MITM 运行状态（使用独立 CommandClient 查询）
-    /// VPN 已连接时调用，通过 XPC 连接到 Network Extension 查询状态
+    /// 刷新 MITM 运行状态
+    /// 注意：getMITMStatus 是 LibboxCommandServer 方法，仅在 Network Extension
+    /// 进程内可直接调用，主 App 无法通过 CommandClient 跨进程查询。
+    /// 此处基于本地配置推断运行状态，活跃连接数显示为未知。
     public func refreshRuntimeStatus() {
-        // 使用独立 CommandClient 查询运行中的 MITM 状态
-        guard let client = LibboxNewStandaloneCommandClient() else {
-            runtimeStatus = .unknown
+        // MITM 未启用时直接返回 stopped
+        guard configuration.enabled else {
+            runtimeStatus = MITMRuntimeStatus(
+                enabled: false,
+                caInstalled: isCAFileExists,
+                activeConnections: 0
+            )
             return
         }
-        defer { try? client.disconnect() }
 
-        if let status = client.getMITMStatus() {
-            runtimeStatus = MITMRuntimeStatus(
-                enabled: status.enabled,
-                caInstalled: status.caInstalled,
-                activeConnections: status.activeConnections
-            )
-        } else {
-            runtimeStatus = .unknown
-        }
+        // MITM 已启用且 CA 文件存在，推断为运行中
+        // 活跃连接数无法从主 App 查询，显示为 -1（未知）
+        runtimeStatus = MITMRuntimeStatus(
+            enabled: true,
+            caInstalled: isCAFileExists,
+            activeConnections: -1
+        )
     }
 
     /// 刷新 MITM 运行状态（使用 CommandServer，Network Extension 内部调用）
