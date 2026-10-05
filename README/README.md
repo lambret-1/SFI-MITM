@@ -719,7 +719,7 @@ sing-box 配置是一个 JSON 对象，包含以下顶层字段（对应 `option
 | `hysteria` | Hysteria 入站（QUIC） | ✅ |
 | `hysteria2` | Hysteria2 入站（QUIC） | ✅ |
 | `tuic` | TUIC 入站（QUIC） | ✅ |
-| `cloudflared` | Cloudflare 入站 | ✅ |
+| `cloudflare` | Cloudflare 入站 | ✅ |
 
 ### 内核支持的完整出站类型（19种）
 
