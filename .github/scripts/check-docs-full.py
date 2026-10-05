@@ -245,8 +245,8 @@ def extract_registry_from_core(core_path: Path) -> Dict[str, List[str]]:
     inbound_matches = re.findall(r'(\w+)\.Register(?:Inbound|Redirect|TProxy)\(registry\)', all_content)
     registry['inbounds'] = list(set(m.lower() for m in inbound_matches))
 
-    # 提取出站注册
-    outbound_matches = re.findall(r'(\w+)\.RegisterOutbound\(registry\)', all_content)
+    # 提取出站注册（包括 RegisterOutbound、RegisterSelector、RegisterURLTest）
+    outbound_matches = re.findall(r'(\w+)\.Register(?:Outbound|Selector|URLTest)\(registry\)', all_content)
     registry['outbounds'] = list(set(m.lower() for m in outbound_matches))
 
     # 提取端点注册

@@ -394,6 +394,10 @@ sing-box 配置是一个 JSON 对象，包含以下顶层字段（对应 `option
         "tag": "dns-proxy",
         "address": "https://1.1.1.1/dns-query",
         "detour": "proxy"
+      },
+      {
+        "tag": "dns-fakeip",
+        "address": "fakeip"
       }
     ],
     "rules": [
@@ -403,7 +407,18 @@ sing-box 配置是一个 JSON 对象，包含以下顶层字段（对应 `option
       }
     ],
     "final": "dns-proxy",
-    "independent_cache": true
+    "reverse_mapping": false,
+    "strategy": "prefer_ipv4",
+    "disable_cache": false,
+    "disable_expire": false,
+    "cache_capacity": 4096,
+    "independent_cache": true,
+    "client_subnet": "0.0.0.0/0",
+    "fakeip": {
+      "enabled": true,
+      "inet4_range": "198.18.0.0/15",
+      "inet6_range": "fc00::/18"
+    }
   },
   "ntp": {
     "enabled": true,
@@ -422,6 +437,14 @@ sing-box 配置是一个 JSON 对象，包含以下顶层字段（对应 `option
       "auto_route": true,
       "strict_route": false,
       "stack": "gvisor",
+      "dns_mode": "hijack",
+      "endpoint_independent_nat": false,
+      "exclude_mptcp": false,
+      "route_address": ["198.18.0.0/15"],
+      "route_exclude_address": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+      "include_interface": ["en0"],
+      "exclude_interface": ["utun*"],
+      "loopback_address": ["127.0.0.1"],
       "dns_handler": "dns-proxy"
     },
     {
@@ -509,8 +532,58 @@ sing-box 配置是一个 JSON 对象，包含以下顶层字段（对应 `option
         "outbound": "direct"
       },
       {
-        "domain_suffix": ["google.com", "youtube.com"],
+        "ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "source_ip_cidr": ["192.168.1.0/24"],
+        "source_ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "port": [80, 443],
+        "port_range": ["1000-2000"],
+        "source_port": [1024, 65535],
+        "source_port_range": ["50000-60000"],
         "outbound": "proxy"
+      },
+      {
+        "network": ["tcp", "udp"],
+        "ip_version": 4,
+        "auth_user": ["user1"],
+        "client": ["client1"],
+        "outbound": "proxy"
+      },
+      {
+        "process_name": ["com.apple.Safari"],
+        "process_path": ["/Applications/Safari.app"],
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": ["google.com", "youtube.com"],
+        "outbound": "proxy",
+        "sniff": true,
+        "sniff_override_destination": false,
+        "sniff_timeout": "300ms",
+        "udp_disable_domain_unification": false
+      },
+      {
+        "domain_keyword": ["ads"],
+        "action": "reject",
+        "invert": false
+      },
+      {
+        "domain_regex": "^.*\\.example\\.com$",
+        "action": "route",
+        "route_options": {
+          "outbound": "proxy"
+        },
+        "rewrite_url": "https://new.example.com",
+        "rewrite_path": "/new-path"
+      },
+      {
+        "rule_set": ["geosite-cn"],
+        "outbound": "direct"
       }
     ],
     "rule_set": [
@@ -576,12 +649,19 @@ sing-box 配置是一个 JSON 对象，包含以下顶层字段（对应 `option
     }
   ],
   "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "cache.db",
+      "cache_id": "sfi",
+      "store_fakeip": true,
+      "store_rdrc": true
+    },
     "clash_api": {
       "external_controller": "127.0.0.1:9097",
       "secret": "",
       "default_mode": "rule",
-      "store_selected": true,
-      "cache_file": "cache.db"
+      "store_mode": true,
+      "store_selected": true
     },
     "v2ray_api": {
       "listen": "127.0.0.1:10085",
@@ -616,6 +696,57 @@ sing-box 配置是一个 JSON 对象，包含以下顶层字段（对应 `option
 | `experimental.clash_api` | Clash 兼容 API，供第三方 GUI 客户端使用 |
 | `experimental.v2ray_api` | V2Ray 兼容 API，用于流量统计 |
 | `experimental.debug` | 调试 API，用于 pprof 性能分析 |
+
+### 内核支持的完整入站类型（19种）
+
+| 类型 | 说明 | iOS 可用性 |
+|------|------|-----------|
+| `tun` | TUN 虚拟网卡入站，iOS Network Extension 必须使用 | ✅ 核心 |
+| `redirect` | 重定向入站（透明代理） | ❌ 仅 Linux/macOS |
+| `tproxy` | 透明代理入站 | ❌ 仅 Linux |
+| `direct` | 直接入站 | ✅ |
+| `socks` | SOCKS5 代理入站 | ✅ |
+| `http` | HTTP 代理入站 | ✅ |
+| `mixed` | SOCKS+HTTP 混合入站 | ✅ |
+| `shadowsocks` | Shadowsocks 入站 | ✅ |
+| `snell` | Snell 入站（Surge 协议） | ✅ |
+| `vmess` | VMess 入站 | ✅ |
+| `trojan` | Trojan 入站 | ✅ |
+| `naive` | NaiveProxy 入站 | ✅ |
+| `shadowtls` | ShadowTLS 入站 | ✅ |
+| `vless` | VLESS 入站 | ✅ |
+| `anytls` | AnyTLS 入站 | ✅ |
+| `hysteria` | Hysteria 入站（QUIC） | ✅ |
+| `hysteria2` | Hysteria2 入站（QUIC） | ✅ |
+| `tuic` | TUIC 入站（QUIC） | ✅ |
+| `cloudflared` | Cloudflare 入站 | ✅ |
+
+### 内核支持的完整出站类型（19种）
+
+| 类型 | 说明 | iOS 可用性 |
+|------|------|-----------|
+| `direct` | 直接出站 | ✅ |
+| `block` | 阻断出站 | ✅ |
+| `bridge` | 桥接出站 | ✅ |
+| `selector` | 手动选择出站组 | ✅ UI 核心 |
+| `urltest` | 自动测速选择出站 | ✅ |
+| `socks` | SOCKS5 代理出站 | ✅ |
+| `http` | HTTP 代理出站 | ✅ |
+| `shadowsocks` | Shadowsocks 出站 | ✅ |
+| `snell` | Snell 出站（Surge 协议） | ✅ |
+| `vmess` | VMess 出站 | ✅ |
+| `trojan` | Trojan 出站 | ✅ |
+| `naive` | NaiveProxy 出站 | ✅ |
+| `tor` | Tor 出站 | ✅ |
+| `ssh` | SSH 隧道出站 | ✅ |
+| `shadowtls` | ShadowTLS 出站 | ✅ |
+| `vless` | VLESS 出站 | ✅ |
+| `anytls` | AnyTLS 出站 | ✅ |
+| `hysteria` | Hysteria 出站（QUIC） | ✅ |
+| `hysteria2` | Hysteria2 出站（QUIC） | ✅ |
+| `tuic` | TUIC 出站（QUIC） | ✅ |
+
+> **注意**：WireGuard 出站已在 sing-box 1.11.0 废弃，改用 WireGuard endpoint（端点）类型。iOS 实际使用中主要依赖 `tun` 入站 + `selector`/`urltest` 出站组 + 各协议出站。
 
 > **注意**：以上配置为示例，实际使用时需替换服务器地址、UUID、密码等敏感信息。iOS App Store 版本（非越狱）通常使用更简洁的配置，由 SFI UI 动态生成。
 
