@@ -123,16 +123,35 @@ public final class MITMServiceManager: ObservableObject {
 
     // MARK: - 运行状态查询
 
-    /// 刷新 MITM 运行状态
-    /// - Parameter commandServer: 当前运行的 CommandServer（可选，未启动时返回 unknown）
+    /// 刷新 MITM 运行状态（使用独立 CommandClient 查询）
+    /// VPN 已连接时调用，通过 XPC 连接到 Network Extension 查询状态
+    public func refreshRuntimeStatus() {
+        // 使用独立 CommandClient 查询运行中的 MITM 状态
+        guard let client = LibboxNewStandaloneCommandClient() else {
+            runtimeStatus = .unknown
+            return
+        }
+        defer { try? client.disconnect() }
+
+        if let status = client.getMITMStatus() {
+            runtimeStatus = MITMRuntimeStatus(
+                enabled: status.enabled,
+                caInstalled: status.caInstalled,
+                activeConnections: status.activeConnections
+            )
+        } else {
+            runtimeStatus = .unknown
+        }
+    }
+
+    /// 刷新 MITM 运行状态（使用 CommandServer，Network Extension 内部调用）
+    /// - Parameter commandServer: 当前运行的 CommandServer
     public func refreshRuntimeStatus(commandServer: LibboxCommandServer?) {
         guard let commandServer else {
             runtimeStatus = .unknown
             return
         }
 
-        // 调用 Libbox API 查询 MITM 状态
-        // 注意：此 API 在 Step 2 中添加到 Libbox，需要新版 Libbox.framework
         if let status = commandServer.getMITMStatus() {
             runtimeStatus = MITMRuntimeStatus(
                 enabled: status.enabled,

@@ -20,7 +20,10 @@ public struct MITMView: View {
     @State private var showCAView = false
     @State private var showMatchView = false
     @State private var showRewriteView = false
+    @State private var showLogView = false
     @State private var alert: AlertState?
+    /// 状态自动刷新定时器（每3秒刷新一次运行状态）
+    @State private var refreshTimer: Timer?
 
     public init(onDismiss: @escaping () -> Void) {
         self.onDismiss = onDismiss
@@ -54,6 +57,19 @@ public struct MITMView: View {
                         value: "\(manager.runtimeStatus.activeConnections)",
                         color: .primary
                     )
+                    // MITM 日志查看入口
+                    NavigationLink {
+                        MITMLogView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "doc.text.magnifyingglass")
+                                .foregroundColor(.accentColor)
+                            Text("MITM 日志")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
 
                 // CA 证书管理
@@ -168,6 +184,31 @@ public struct MITMView: View {
                     }
                 }
         )
+        // 页面显示时启动状态自动刷新，离开时停止
+        .onAppear {
+            startStatusRefresh()
+        }
+        .onDisappear {
+            stopStatusRefresh()
+        }
+    }
+
+    // MARK: - 状态自动刷新
+
+    /// 启动 MITM 运行状态自动刷新（每3秒刷新一次）
+    private func startStatusRefresh() {
+        // 立即刷新一次
+        manager.refreshRuntimeStatus()
+        // 启动定时器
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
+            manager.refreshRuntimeStatus()
+        }
+    }
+
+    /// 停止 MITM 运行状态自动刷新
+    private func stopStatusRefresh() {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
     }
 
     // MARK: - 状态行组件
