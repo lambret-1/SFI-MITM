@@ -52,12 +52,13 @@ jobs:
           echo "  （文档参数 ↔ 内核代码 ↔ 客户端代码）"
           echo "=========================================="
           echo ""
+          mkdir -p log
           python3 .github/scripts/check-docs-full.py \
             --doc README/README.md \
             --core ../sing-box-core \
             --client . \
-            --output doc-full-check-report.md \
-            --json doc-full-check-result.json
+            --output log/doc-full-check-report.md \
+            --json log/doc-full-check-result.json
           CHECK_EXIT=$?
           echo ""
           echo "=== 检查退出码: $CHECK_EXIT ==="
@@ -69,13 +70,29 @@ jobs:
         with:
           name: doc-full-check-report
           path: |
-            sfi/doc-full-check-report.md
-            sfi/doc-full-check-result.json
+            sfi/log/doc-full-check-report.md
+            sfi/log/doc-full-check-result.json
           retention-days: 30
 
       - name: 输出检查摘要到 Step Summary
         if: always()
         run: |
-          if [ -f sfi/doc-full-check-report.md ]; then
-            cat sfi/doc-full-check-report.md >> $GITHUB_STEP_SUMMARY
+          if [ -f sfi/log/doc-full-check-report.md ]; then
+            cat sfi/log/doc-full-check-report.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 推送报告到仓库 log 文件夹
+        if: always()
+        working-directory: sfi
+        run: |
+          echo "=== 推送检查报告到仓库 log 文件夹 ==="
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add log/doc-full-check-report.md log/doc-full-check-result.json
+          if git diff --cached --quiet; then
+            echo "报告无变化，无需推送"
+          else
+            git commit -m "CI：接入文档全量参数检查报告（自动生成）"
+            TARGET_BRANCH="${GITHUB_REF#refs/heads/}"
+            git push origin HEAD:$TARGET_BRANCH || echo "⚠️ 报告推送失败（可能是分支保护）"
           fi
