@@ -35,7 +35,7 @@ public struct MITMRewriteView: View {
         .navigationTitle("重写规则")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     editingRule = MITMRewriteRule(name: "新规则")
                     showEditor = true

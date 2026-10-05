@@ -70,10 +70,12 @@ public final class MITMServiceManager: ObservableObject {
     public func generateCA(certificatePath: String, privateKeyPath: String) -> Error? {
         // 调用 Libbox API 生成 CA 证书
         // 注意：此 API 在 Step 2 中添加到 Libbox，需要新版 Libbox.framework
-        let error = LibboxGenerateMITMCA(certificatePath, privateKeyPath)
-        if let error {
-            NSLog("MITMServiceManager: 生成 CA 失败 - \(error.localizedDescription)")
-            return error
+        var error: NSError?
+        let success = LibboxGenerateMITMCA(certificatePath, privateKeyPath, &error)
+        if !success || error != nil {
+            let finalError = error ?? NSError(domain: "com.mitm.box", code: -1, userInfo: [NSLocalizedDescriptionKey: "生成 CA 证书失败"])
+            NSLog("MITMServiceManager: 生成 CA 失败 - \(finalError.localizedDescription)")
+            return finalError
         }
 
         // 更新配置中的证书路径
