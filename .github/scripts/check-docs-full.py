@@ -652,6 +652,72 @@ def run_checks(doc_path: Path, core_path: Path, client_path: Path) -> Tuple[Dict
         'api_methods': sorted(client_usage['api_methods']),
     }
 
+    # ===== 10. 注册表一致性检查 =====
+    # 入站注册表：文档中所有入站类型 vs 内核注册表
+    all_doc_inbounds = set()
+    for item in results['inbounds']['sfi_used']:
+        if item['in_doc']:
+            all_doc_inbounds.add(item['type'])
+    for item in results['inbounds']['not_applicable']:
+        if item['in_doc']:
+            all_doc_inbounds.add(item['type'])
+
+    inbound_only_doc = sorted(all_doc_inbounds - core_registry['inbounds'])
+    inbound_only_core = sorted(core_registry['inbounds'] - all_doc_inbounds)
+
+    # 出站注册表：文档中所有出站类型 vs 内核注册表
+    all_doc_outbounds = set()
+    for item in results['outbounds']['sfi_used']:
+        if item['in_doc']:
+            all_doc_outbounds.add(item['type'])
+
+    outbound_only_doc = sorted(all_doc_outbounds - core_registry['outbounds'])
+    outbound_only_core = sorted(core_registry['outbounds'] - all_doc_outbounds)
+
+    # 服务注册表：文档中所有服务类型 vs 内核注册表
+    all_doc_services = set()
+    for item in results['services']['documented']:
+        if item['in_doc']:
+            all_doc_services.add(item['type'])
+
+    service_only_doc = sorted(all_doc_services - core_registry['services'])
+    service_only_core = sorted(core_registry['services'] - all_doc_services)
+
+    registry_errors = []
+    if inbound_only_doc:
+        registry_errors.append(f"入站注册表：文档包含内核未注册的类型 {inbound_only_doc}")
+    if outbound_only_doc:
+        registry_errors.append(f"出站注册表：文档包含内核未注册的类型 {outbound_only_doc}")
+    if service_only_doc:
+        registry_errors.append(f"服务注册表：文档包含内核未注册的类型 {service_only_doc}")
+
+    for err in registry_errors:
+        errors.append(f"[注册表一致性] {err}")
+
+    results['registry_check'] = {
+        'inbounds': {
+            'doc_types': sorted(all_doc_inbounds),
+            'core_types': sorted(core_registry['inbounds']),
+            'only_in_doc': inbound_only_doc,
+            'only_in_core': inbound_only_core,
+            'consistent': len(inbound_only_doc) == 0,
+        },
+        'outbounds': {
+            'doc_types': sorted(all_doc_outbounds),
+            'core_types': sorted(core_registry['outbounds']),
+            'only_in_doc': outbound_only_doc,
+            'only_in_core': outbound_only_core,
+            'consistent': len(outbound_only_doc) == 0,
+        },
+        'services': {
+            'doc_types': sorted(all_doc_services),
+            'core_types': sorted(core_registry['services']),
+            'only_in_doc': service_only_doc,
+            'only_in_core': service_only_core,
+            'consistent': len(service_only_doc) == 0,
+        },
+    }
+
     return results, errors, warnings
 
 
@@ -843,6 +909,84 @@ def generate_report(results: Dict, errors: List[str], warnings: List[str], doc_p
         else:
             lines.append(f"| {category} | （未检测到） |")
     lines.append("")
+
+    # 注册表一致性检查
+    lines.append("### 11. 注册表一致性检查（文档 ↔ 内核）")
+    lines.append("")
+
+    reg = results['registry_check']
+
+    # 入站注册表
+    lines.append("#### 11.1 入站注册表")
+    lines.append("")
+    lines.append("| 项目 | 内容 |")
+    lines.append("|------|------|")
+    lines.append(f"| 文档类型数 | {len(reg['inbounds']['doc_types'])} |")
+    lines.append(f"| 内核类型数 | {len(reg['inbounds']['core_types'])} |")
+    lines.append(f"| 一致性 | {'✅ 一致' if reg['inbounds']['consistent'] else '❌ 不一致'} |")
+    lines.append("")
+    if reg['inbounds']['only_in_doc']:
+        lines.append(f"**⚠️ 文档多出的类型（内核未注册）**: {', '.join(f'`{t}`' for t in reg['inbounds']['only_in_doc'])}")
+        lines.append("")
+        lines.append("**修改建议**:")
+        for t in reg['inbounds']['only_in_doc']:
+            lines.append(f"- 从文档入站类型列表中移除 `{t}`，或确认内核是否已注册此类型")
+        lines.append("")
+    if reg['inbounds']['only_in_core']:
+        lines.append(f"**ℹ️ 内核有但文档未列出的类型**: {', '.join(f'`{t}`' for t in reg['inbounds']['only_in_core'])}")
+        lines.append("")
+        lines.append("**修改建议**:")
+        for t in reg['inbounds']['only_in_core']:
+            lines.append(f"- 如 SFI 客户端需要使用 `{t}`，请在文档中补充说明；如为服务端/Linux 特有类型，可忽略")
+        lines.append("")
+
+    # 出站注册表
+    lines.append("#### 11.2 出站注册表")
+    lines.append("")
+    lines.append("| 项目 | 内容 |")
+    lines.append("|------|------|")
+    lines.append(f"| 文档类型数 | {len(reg['outbounds']['doc_types'])} |")
+    lines.append(f"| 内核类型数 | {len(reg['outbounds']['core_types'])} |")
+    lines.append(f"| 一致性 | {'✅ 一致' if reg['outbounds']['consistent'] else '❌ 不一致'} |")
+    lines.append("")
+    if reg['outbounds']['only_in_doc']:
+        lines.append(f"**⚠️ 文档多出的类型（内核未注册）**: {', '.join(f'`{t}`' for t in reg['outbounds']['only_in_doc'])}")
+        lines.append("")
+        lines.append("**修改建议**:")
+        for t in reg['outbounds']['only_in_doc']:
+            lines.append(f"- 从文档出站类型列表中移除 `{t}`，或确认内核是否已注册此类型")
+        lines.append("")
+    if reg['outbounds']['only_in_core']:
+        lines.append(f"**ℹ️ 内核有但文档未列出的类型**: {', '.join(f'`{t}`' for t in reg['outbounds']['only_in_core'])}")
+        lines.append("")
+        lines.append("**修改建议**:")
+        for t in reg['outbounds']['only_in_core']:
+            lines.append(f"- 如 SFI 客户端需要使用 `{t}`，请在文档中补充说明；如为高级功能，可忽略")
+        lines.append("")
+
+    # 服务注册表
+    lines.append("#### 11.3 服务注册表")
+    lines.append("")
+    lines.append("| 项目 | 内容 |")
+    lines.append("|------|------|")
+    lines.append(f"| 文档类型数 | {len(reg['services']['doc_types'])} |")
+    lines.append(f"| 内核类型数 | {len(reg['services']['core_types'])} |")
+    lines.append(f"| 一致性 | {'✅ 一致' if reg['services']['consistent'] else '❌ 不一致'} |")
+    lines.append("")
+    if reg['services']['only_in_doc']:
+        lines.append(f"**⚠️ 文档多出的类型（内核未注册）**: {', '.join(f'`{t}`' for t in reg['services']['only_in_doc'])}")
+        lines.append("")
+        lines.append("**修改建议**:")
+        for t in reg['services']['only_in_doc']:
+            lines.append(f"- 从文档服务类型列表中移除 `{t}`，或确认内核是否已注册此服务")
+        lines.append("")
+    if reg['services']['only_in_core']:
+        lines.append(f"**ℹ️ 内核有但文档未列出的类型**: {', '.join(f'`{t}`' for t in reg['services']['only_in_core'])}")
+        lines.append("")
+        lines.append("**修改建议**:")
+        for t in reg['services']['only_in_core']:
+            lines.append(f"- 如 SFI 客户端需要使用 `{t}` 服务，请在文档中补充说明；如为高级服务，可忽略")
+        lines.append("")
 
     # 警告详情
     if warnings:
