@@ -197,6 +197,14 @@ public class ExtensionEnvironments: ObservableObject {
     // 远程服务器（本项目暂不支持远程控制，固定为nil）
     public var remoteServer: RemoteServer? { nil }
 
+    /// 服务是否可用（本地扩展已连接或远程服务器已配置）
+    public var serviceAvailable: Bool {
+        if remoteServer != nil {
+            return true
+        }
+        return extensionProfile?.status.isConnectedStrict == true
+    }
+
     public let profileUpdate = ObjectWillChangePublisher()
     public let selectedProfileUpdate = ObjectWillChangePublisher()
     public let openSettings = ObjectWillChangePublisher()
