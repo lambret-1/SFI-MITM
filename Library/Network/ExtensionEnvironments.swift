@@ -190,6 +190,13 @@ public class ExtensionEnvironments: ObservableObject {
     public var logSearchText = ""
     public var connectionSearchText = ""
 
+    // 报告管理器（崩溃/OOM/电源）
+    public let oomReportManager = OOMReportManager()
+    public let powerReportManager = PowerReportManager()
+
+    // 远程服务器（本项目暂不支持远程控制，固定为nil）
+    public var remoteServer: RemoteServer? { nil }
+
     public let profileUpdate = ObjectWillChangePublisher()
     public let selectedProfileUpdate = ObjectWillChangePublisher()
     public let openSettings = ObjectWillChangePublisher()

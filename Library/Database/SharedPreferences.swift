@@ -96,6 +96,23 @@ public enum SharedPreferences {
         public static let commandServerSecret = Preference<String>("command_server_secret", defaultValue: "")
     #endif
 
+    // 网络质量测试
+    public static let nqConfigURL = Preference<String>("nq_config_url", defaultValue: "https://speed.cloudflare.com/__down?bytes=0")
+    public static let nqSerial = Preference<Bool>("nq_serial", defaultValue: false)
+    public static let nqHttp3 = Preference<Bool>("nq_http3", defaultValue: false)
+    public static let nqMaxRuntime = Preference<Int>("nq_max_runtime", defaultValue: 30)
+
+    // STUN 测试
+    public static let stunServer = Preference<String>("stun_server", defaultValue: "stun.syncthing.net:3478")
+
+    // OOM 杀手
+    public static let oomKillerEnabled = Preference<Bool>("oom_killer_enabled", defaultValue: true)
+    public static let oomKillerKillConnections = Preference<Bool>("oom_killer_kill_connections", defaultValue: false)
+    public static let oomMemoryLimitMB = Preference<Int>("oom_memory_limit_mb", defaultValue: 0)
+
+    // 电源报告
+    public static let powerReportEnabled = Preference<Bool>("power_report_enabled", defaultValue: true)
+
     // Profile Override
 
     public static let excludeDefaultRoute = Preference<Bool>("exclude_default_route", defaultValue: false)
