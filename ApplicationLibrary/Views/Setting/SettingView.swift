@@ -157,6 +157,8 @@ public struct SettingView: View {
                 ForEach([Tabs.app, Tabs.core, Tabs.packetTunnel, Tabs.onDemandRules, Tabs.profileOverride]) { it in
                     it.navigationLink
                 }
+                // MITM 设置入口（独立全屏页面）
+                MITMSettingsButton()
             }
             #if !os(tvOS)
                 Section("About") {

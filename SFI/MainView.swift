@@ -15,6 +15,7 @@ struct MainView: View {
     @State private var showGroups = false
     @State private var showConnections = false
     @State private var buttonState = ButtonVisibilityState()
+    @StateObject private var mitmPresenter = MITMSettingsPresenter.shared
 
     private let profileEditor: (Binding<String>, Bool) -> AnyView = { text, isEditable in
         AnyView(ProfileEditorWrapperView(text: text, isEditable: isEditable))
@@ -153,6 +154,11 @@ struct MainView: View {
                 }
                 .sheet(isPresented: $showConnections) {
                     ConnectionsSheetContent()
+                }
+                .fullScreenCover(isPresented: $mitmPresenter.isPresented) {
+                    MITMView {
+                        mitmPresenter.isPresented = false
+                    }
                 }
         }
         .onAppear {
