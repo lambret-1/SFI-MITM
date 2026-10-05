@@ -18,6 +18,25 @@ public struct OutboundGroup: Codable, Hashable {
         self.items = items
     }
 
+    public init(_ goGroup: LibboxOutboundGroup) {
+        var goItems = [OutboundGroupItem]()
+        if let itemIterator = goGroup.getItems() {
+            while itemIterator.hasNext() {
+                if let item = itemIterator.next() {
+                    goItems.append(OutboundGroupItem(item))
+                }
+            }
+        }
+        self.init(
+            tag: goGroup.tag,
+            type: goGroup.type,
+            selected: goGroup.selected,
+            selectable: goGroup.selectable,
+            isExpand: goGroup.isExpand,
+            items: goItems
+        )
+    }
+
     public func hash(into hasher: inout Hasher) {
         hasher.combine(tag)
         hasher.combine(selected)
@@ -46,6 +65,15 @@ public struct OutboundGroupItem: Codable, Hashable {
         self.type = type
         self.urlTestTime = urlTestTime
         self.urlTestDelay = urlTestDelay
+    }
+
+    public init(_ item: LibboxOutboundGroupItem) {
+        self.init(
+            tag: item.tag,
+            type: item.type,
+            urlTestTime: Date(timeIntervalSince1970: Double(item.urlTestTime)),
+            urlTestDelay: UInt16(item.urlTestDelay)
+        )
     }
 
     public var displayType: String {
