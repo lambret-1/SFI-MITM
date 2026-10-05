@@ -17,11 +17,23 @@ public struct MITMRewriteView: View {
     public var body: some View {
         List {
             if manager.configuration.rewrite.rules.isEmpty {
-                ContentUnavailableView(
-                    "暂无重写规则",
-                    systemImage: "pencil.line",
-                    description: Text("点击右上角添加第一条重写规则")
-                )
+                // iOS 16 兼容的空态视图（ContentUnavailableView 仅 iOS 17+）
+                Section {
+                    VStack(spacing: 12) {
+                        Image(systemName: "pencil.line")
+                            .font(.system(size: 40))
+                            .foregroundColor(.secondary)
+                        Text("暂无重写规则")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        Text("点击右上角添加第一条重写规则")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                    .listRowBackground(Color.clear)
+                }
             } else {
                 ForEach($manager.configuration.rewrite.rules) { $rule in
                     ruleRow(rule: rule)
