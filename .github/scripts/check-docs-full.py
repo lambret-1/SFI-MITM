@@ -176,19 +176,24 @@ def extract_params_from_core(core_path: Path) -> Tuple[Dict[str, Tuple[str, str]
             continue
 
         # 提取 struct 字段：`FieldName type `json:"field_name"`
-        struct_fields = re.findall(
-            r'([A-Z][a-zA-Z0-9]*)\s+([^\s`]+(?:\s+[^\s`]+)*)\s*`[^`]*json:"([a-z][a-zA-Z0-9_]*)"',
-            content
-        )
-        for field_name, field_type, json_name in struct_fields:
-            if json_name and json_name != "-":
-                # 清理类型
-                clean_type = field_type.strip()
-                # 移除指针符号
-                clean_type = clean_type.lstrip('*')
-                # 只取基础类型
-                clean_type = clean_type.split('[')[0].split('{')[0].strip()
-                params[json_name] = (clean_type, str(go_file.relative_to(core_path)))
+        # 先按 struct 块分割，避免匹配到 interface 定义
+        struct_blocks = re.findall(r'type\s+\w+\s+struct\s*\{([^}]*)\}', content, re.DOTALL)
+        for block in struct_blocks:
+            struct_fields = re.findall(
+                r'([A-Z][a-zA-Z0-9]*)\s+([^\s`]+(?:\s+[^\s`]+)*)\s*`[^`]*json:"([a-z][a-zA-Z0-9_]*)"',
+                block
+            )
+            for field_name, field_type, json_name in struct_fields:
+                if json_name and json_name != "-":
+                    # 清理类型
+                    clean_type = field_type.strip()
+                    # 移除指针符号
+                    clean_type = clean_type.lstrip('*')
+                    # 只取基础类型（第一个词）
+                    clean_type = clean_type.split()[0].split('[')[0].split('{')[0].strip()
+                    # 排除明显不是类型的内容
+                    if clean_type and not clean_type.startswith('//') and len(clean_type) < 50:
+                        params[json_name] = (clean_type, str(go_file.relative_to(core_path)))
 
         # 提取枚举类型定义（type X string / type X int）
         enum_types = re.findall(r'type\s+([A-Z][a-zA-Z0-9]*)\s+(?:string|int|uint8|uint16|uint32)', content)
@@ -212,7 +217,7 @@ def extract_params_from_core(core_path: Path) -> Tuple[Dict[str, Tuple[str, str]
 
 
 def extract_registry_from_core(core_path: Path) -> Dict[str, List[str]]:
-    """从内核注册表中提取所有注册的类型"""
+    """从内核 include 目录中提取所有注册的类型（包括条件注册）"""
     registry: Dict[str, List[str]] = {
         'inbounds': [],
         'outbounds': [],
@@ -222,43 +227,48 @@ def extract_registry_from_core(core_path: Path) -> Dict[str, List[str]]:
         'certificate_providers': [],
     }
 
-    registry_file = core_path / "include" / "registry.go"
-    if not registry_file.exists():
+    include_dir = core_path / "include"
+    if not include_dir.exists():
         return registry
 
-    content = registry_file.read_text(encoding='utf-8', errors='ignore')
+    # 扫描 include 目录下所有 .go 文件，提取所有注册调用
+    all_content = ""
+    for go_file in include_dir.rglob("*.go"):
+        if go_file.name.endswith("_test.go"):
+            continue
+        try:
+            all_content += go_file.read_text(encoding='utf-8', errors='ignore') + "\n"
+        except Exception:
+            continue
 
-    # 提取入站注册
-    inbound_matches = re.findall(r'(\w+)\.RegisterInbound\(registry\)', content)
-    registry['inbounds'] = list(set(inbound_matches))
+    # 提取入站注册（包括 RegisterInbound、RegisterRedirect、RegisterTProxy）
+    inbound_matches = re.findall(r'(\w+)\.Register(?:Inbound|Redirect|TProxy)\(registry\)', all_content)
+    registry['inbounds'] = list(set(m.lower() for m in inbound_matches))
 
     # 提取出站注册
-    outbound_matches = re.findall(r'(\w+)\.RegisterOutbound\(registry\)', content)
-    registry['outbounds'] = list(set(outbound_matches))
+    outbound_matches = re.findall(r'(\w+)\.RegisterOutbound\(registry\)', all_content)
+    registry['outbounds'] = list(set(m.lower() for m in outbound_matches))
 
     # 提取端点注册
-    endpoint_matches = re.findall(r'(\w+)\.RegisterEndpoint\(registry\)|register(\w+)Endpoint\(registry\)', content)
+    endpoint_matches = re.findall(r'(\w+)\.RegisterEndpoint\(registry\)|register(\w+)Endpoint\(registry\)', all_content)
     for m in endpoint_matches:
-        name = m[0] or m[1]
-        if name and name.lower() not in ('wireguard',):
-            registry['endpoints'].append(name.lower())
-    registry['endpoints'] = list(set(registry['endpoints'] + ['wireguard', 'masque']))
+        name = (m[0] or m[1]).lower()
+        if name and name not in registry['endpoints']:
+            registry['endpoints'].append(name)
 
     # 提取 DNS 传输注册
-    dns_matches = re.findall(r'(\w+)\.RegisterTransport\(registry\)|register(\w+)Transport\(registry\)', content)
+    dns_matches = re.findall(r'(\w+)\.Register(?:Transport|HTTP3Transport)\(registry\)|register(\w+)(?:DNS)?Transport\(registry\)', all_content)
     for m in dns_matches:
-        name = m[0] or m[1]
-        if name:
-            registry['dns_transports'].append(name.lower())
-    registry['dns_transports'] = list(set(registry['dns_transports']))
+        name = (m[0] or m[1]).lower()
+        if name and name not in registry['dns_transports']:
+            registry['dns_transports'].append(name)
 
     # 提取服务注册
-    service_matches = re.findall(r'(\w+)\.RegisterService\(registry\)|register(\w+)Service\(registry\)', content)
+    service_matches = re.findall(r'(\w+)\.RegisterService\(registry\)|register(\w+)(?:Service|RealmService)\(registry\)', all_content)
     for m in service_matches:
-        name = m[0] or m[1]
-        if name:
-            registry['services'].append(name.lower())
-    registry['services'] = list(set(registry['services']))
+        name = (m[0] or m[1]).lower()
+        if name and name not in registry['services']:
+            registry['services'].append(name)
 
     return registry
 
