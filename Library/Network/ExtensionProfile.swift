@@ -8,6 +8,11 @@ import os
 
 private let logger = Logger(category: "ExtensionProfile")
 
+/// 全局配置转换钩子
+/// 用于在 VPN 启动前对 profile 配置进行后处理（如注入 MITM 服务配置）
+/// 由 ApplicationLibrary 层在启动时设置此闭包
+public var ExtensionProfileConfigTransformer: ((String) -> String)?
+
 @MainActor
 public class ExtensionProfile: ObservableObject {
     public static let controlKind = AppConfiguration.widgetControlKind
@@ -213,7 +218,11 @@ public class ExtensionProfile: ObservableObject {
             ])
         }
 
-        let configContent = try await profile.readAsync()
+        var configContent = try await profile.readAsync()
+        // 调用全局配置转换钩子（如注入 MITM 服务配置）
+        if let transformer = ExtensionProfileConfigTransformer {
+            configContent = transformer(configContent)
+        }
         options["configContent"] = NSString(string: configContent)
 
         #if !os(macOS)

@@ -32,6 +32,10 @@ class ApplicationDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCe
             ),
         ])
         notificationCenter.delegate = self
+        // 注册 MITM 配置注入钩子：VPN 启动前自动注入 MITM 服务配置
+        ExtensionProfileConfigTransformer = { originalJSON in
+            MITMServiceManager.shared.injectConfiguration(into: originalJSON)
+        }
         setup()
         return true
     }
