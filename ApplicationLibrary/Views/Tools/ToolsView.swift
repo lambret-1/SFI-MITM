@@ -5,7 +5,6 @@ import SwiftUI
 /// 工具页面
 /// 提供网络诊断、端口转发、URL测试等实用工具入口
 public struct ToolsView: View {
-    @StateObject private var mitmPresenter = MITMSettingsPresenter.shared
     @State private var showPortForward = false
     @State private var showURLTest = false
     @State private var showDNSTest = false
@@ -57,7 +56,7 @@ public struct ToolsView: View {
                 // MITM 工具
                 Section("MITM 工具") {
                     Button {
-                        mitmPresenter.presented = true
+                        MITMSettingsPresenter.show()
                     } label: {
                         toolRow(
                             icon: "lock.shield",
@@ -92,11 +91,6 @@ public struct ToolsView: View {
             .listStyle(.insetGrouped)
             .navigationTitle("工具")
             .navigationBarTitleDisplayMode(.inline)
-        }
-        .fullScreenCover(isPresented: $mitmPresenter.presented) {
-            MITMView {
-                mitmPresenter.presented = false
-            }
         }
     }
 
@@ -272,12 +266,11 @@ struct DNSTestView: View {
             var success: DarwinBoolean = false
             if let addresses = CFHostGetAddressing(host, &success)?.takeUnretainedValue() as? [Data] {
                 for address in addresses {
-                    let data = address as NSData
                     var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                    let result = data.withUnsafeBytes { ptr in
+                    let result = address.withUnsafeBytes { ptr in
                         getnameinfo(
                             ptr.bindMemory(to: sockaddr.self).baseAddress,
-                            socklen_t(data.length),
+                            socklen_t(address.count),
                             &hostname,
                             socklen_t(hostname.count),
                             nil,
