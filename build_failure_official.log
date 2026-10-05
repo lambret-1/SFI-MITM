@@ -1,0 +1,559 @@
+﻿2026-10-05T09:52:05.3134530Z Current runner version: '2.337.0'
+2026-10-05T09:52:05.3152030Z ##[group]Runner Image Provisioner
+2026-10-05T09:52:05.3152700Z Hosted Compute Agent
+2026-10-05T09:52:05.3153130Z Version: 20260828.587
+2026-10-05T09:52:05.3153570Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-10-05T09:52:05.3154080Z Build Date: 2026-08-28T16:44:25Z
+2026-10-05T09:52:05.3154560Z Worker ID: {a82c91d8-bce8-4975-ba36-a9d1b5569005}
+2026-10-05T09:52:05.3155070Z Azure Region: westus
+2026-10-05T09:52:05.3155480Z ##[endgroup]
+2026-10-05T09:52:05.3156610Z ##[group]Operating System
+2026-10-05T09:52:05.3157070Z macOS
+2026-10-05T09:52:05.3157430Z 15.7.9
+2026-10-05T09:52:05.3157800Z 24G830
+2026-10-05T09:52:05.3158170Z ##[endgroup]
+2026-10-05T09:52:05.3158680Z ##[group]Runner Image
+2026-10-05T09:52:05.3159110Z Image: macos-15-arm64
+2026-10-05T09:52:05.3159540Z Version: 20260907.0337.1
+2026-10-05T09:52:05.3160580Z Included Software: https://github.com/actions/runner-images/blob/macos-15-arm64/20260907.0337/images/macos/macos-15-arm64-Readme.md
+2026-10-05T09:52:05.3161970Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-15-arm64%2F20260907.0337
+2026-10-05T09:52:05.3162680Z ##[endgroup]
+2026-10-05T09:52:05.3163600Z ##[group]GITHUB_TOKEN Permissions
+2026-10-05T09:52:05.3164940Z Contents: write
+2026-10-05T09:52:05.3165400Z Metadata: read
+2026-10-05T09:52:05.3165820Z PullRequests: read
+2026-10-05T09:52:05.3166220Z ##[endgroup]
+2026-10-05T09:52:05.3168430Z Secret source: Actions
+2026-10-05T09:52:05.3169190Z Cache mode: write
+2026-10-05T09:52:05.3169860Z Prepare workflow directory
+2026-10-05T09:52:05.3514560Z Prepare all required actions
+2026-10-05T09:52:05.3549670Z Getting action download info
+2026-10-05T09:52:05.6339380Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-05T09:52:05.8681710Z Download action repository 'actions/setup-go@v5' (SHA:40f1582b2485089dde7abd97c1529aa768e1baff)
+2026-10-05T09:52:06.3322720Z Download action repository 'actions/cache@v4' (SHA:0057852bfaa89a56745cba8c7296529d2fc39830)
+2026-10-05T09:52:06.4165870Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-10-05T09:52:06.6026640Z Complete job name: 构建 SFI iOS 未签名 IPA
+2026-10-05T09:52:06.6477160Z ##[group]Run actions/checkout@v4
+2026-10-05T09:52:06.6477700Z with:
+2026-10-05T09:52:06.6478010Z   path: sfi
+2026-10-05T09:52:06.6478360Z   repository: lambret-1/SFI-MITM
+2026-10-05T09:52:06.6481140Z   token: ***
+2026-10-05T09:52:06.6519740Z   ssh-strict: true
+2026-10-05T09:52:06.6520140Z   ssh-user: git
+2026-10-05T09:52:06.6520500Z   persist-credentials: true
+2026-10-05T09:52:06.6520960Z   clean: true
+2026-10-05T09:52:06.6521330Z   sparse-checkout-cone-mode: true
+2026-10-05T09:52:06.6521740Z   fetch-depth: 1
+2026-10-05T09:52:06.6522080Z   fetch-tags: false
+2026-10-05T09:52:06.6522430Z   show-progress: true
+2026-10-05T09:52:06.6522780Z   lfs: false
+2026-10-05T09:52:06.6523100Z   submodules: false
+2026-10-05T09:52:06.6523460Z   set-safe-directory: true
+2026-10-05T09:52:06.6523880Z   allow-unsafe-pr-checkout: false
+2026-10-05T09:52:06.6524930Z env:
+2026-10-05T09:52:06.6525260Z   GO_VERSION: 1.25.5
+2026-10-05T09:52:06.6525600Z   XCODE_SCHEME: SFI
+2026-10-05T09:52:06.6525990Z   BUILD_CONFIGURATION: Release
+2026-10-05T09:52:06.6526400Z   DERIVED_DATA_PATH: build/DerivedData
+2026-10-05T09:52:06.6526810Z ##[endgroup]
+2026-10-05T09:52:06.9089820Z Syncing repository: lambret-1/SFI-MITM
+2026-10-05T09:52:06.9091280Z ##[group]Getting Git version info
+2026-10-05T09:52:06.9091880Z Working directory is '/Users/runner/work/SFI-MITM/SFI-MITM/sfi'
+2026-10-05T09:52:06.9094690Z [command]/opt/homebrew/bin/git version
+2026-10-05T09:52:06.9615320Z git version 2.55.0
+2026-10-05T09:52:06.9630380Z ##[endgroup]
+2026-10-05T09:52:06.9636400Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/4b1d9bca-a93a-4081-a267-e31f286f6f22/.gitconfig'
+2026-10-05T09:52:06.9643780Z Temporarily overriding HOME='/Users/runner/work/_temp/4b1d9bca-a93a-4081-a267-e31f286f6f22' before making global git config changes
+2026-10-05T09:52:06.9645280Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-05T09:52:06.9647570Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/SFI-MITM/SFI-MITM/sfi
+2026-10-05T09:52:06.9760690Z ##[group]Initializing the repository
+2026-10-05T09:52:06.9763970Z [command]/opt/homebrew/bin/git init /Users/runner/work/SFI-MITM/SFI-MITM/sfi
+2026-10-05T09:52:06.9958010Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-05T09:52:06.9959130Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-05T09:52:06.9959890Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-05T09:52:06.9960530Z hint: call:
+2026-10-05T09:52:06.9960890Z hint:
+2026-10-05T09:52:06.9961380Z hint: 	git config --global init.defaultBranch <name>
+2026-10-05T09:52:06.9961880Z hint:
+2026-10-05T09:52:06.9962350Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-05T09:52:06.9963110Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-05T09:52:06.9963750Z hint:
+2026-10-05T09:52:06.9964120Z hint: 	git branch -m <name>
+2026-10-05T09:52:06.9964560Z hint:
+2026-10-05T09:52:06.9965080Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-05T09:52:06.9965870Z Initialized empty Git repository in /Users/runner/work/SFI-MITM/SFI-MITM/sfi/.git/
+2026-10-05T09:52:06.9969340Z [command]/opt/homebrew/bin/git remote add origin https://github.com/lambret-1/SFI-MITM
+2026-10-05T09:52:07.0044480Z ##[endgroup]
+2026-10-05T09:52:07.0045280Z ##[group]Disabling automatic garbage collection
+2026-10-05T09:52:07.0046660Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+2026-10-05T09:52:07.0107860Z ##[endgroup]
+2026-10-05T09:52:07.0108520Z ##[group]Setting up auth
+2026-10-05T09:52:07.0112200Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-05T09:52:07.0174310Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-05T09:52:07.1226660Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-05T09:52:07.1287050Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-05T09:52:07.1974310Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-05T09:52:07.2032230Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-05T09:52:07.2716470Z [command]/opt/homebrew/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-05T09:52:07.2829550Z ##[endgroup]
+2026-10-05T09:52:07.2830250Z ##[group]Fetching the repository
+2026-10-05T09:52:07.2835810Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +a8ea6872b37fff4b8af5373be7d105a16f33633e:refs/remotes/origin/sing-box-for-apple
+2026-10-05T09:52:08.0267110Z From https://github.com/lambret-1/SFI-MITM
+2026-10-05T09:52:08.0286500Z  * [new ref]         a8ea6872b37fff4b8af5373be7d105a16f33633e -> origin/sing-box-for-apple
+2026-10-05T09:52:08.0408620Z ##[endgroup]
+2026-10-05T09:52:08.0409960Z ##[group]Determining the checkout info
+2026-10-05T09:52:08.0410960Z ##[endgroup]
+2026-10-05T09:52:08.0411770Z [command]/opt/homebrew/bin/git sparse-checkout disable
+2026-10-05T09:52:08.0413850Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-05T09:52:08.0432890Z ##[group]Checking out the ref
+2026-10-05T09:52:08.0438040Z [command]/opt/homebrew/bin/git checkout --progress --force -B sing-box-for-apple refs/remotes/origin/sing-box-for-apple
+2026-10-05T09:52:08.1107740Z Switched to a new branch 'sing-box-for-apple'
+2026-10-05T09:52:08.1117480Z branch 'sing-box-for-apple' set up to track 'origin/sing-box-for-apple'.
+2026-10-05T09:52:08.1121250Z ##[endgroup]
+2026-10-05T09:52:08.1200410Z [command]/opt/homebrew/bin/git log -1 --format=%H
+2026-10-05T09:52:08.1260390Z a8ea6872b37fff4b8af5373be7d105a16f33633e
+2026-10-05T09:52:08.1427890Z ##[group]Run git submodule update --init --recursive
+2026-10-05T09:52:08.1428820Z [36;1mgit submodule update --init --recursive[0m
+2026-10-05T09:52:08.1468020Z shell: /bin/bash -e {0}
+2026-10-05T09:52:08.1468550Z env:
+2026-10-05T09:52:08.1468950Z   GO_VERSION: 1.25.5
+2026-10-05T09:52:08.1469450Z   XCODE_SCHEME: SFI
+2026-10-05T09:52:08.1469920Z   BUILD_CONFIGURATION: Release
+2026-10-05T09:52:08.1470530Z   DERIVED_DATA_PATH: build/DerivedData
+2026-10-05T09:52:08.1471200Z ##[endgroup]
+2026-10-05T09:52:08.2477010Z Submodule 'Frameworks/Runestone' (https://github.com/nekohasekai/Runestone.git) registered for path 'Frameworks/Runestone'
+2026-10-05T09:52:08.2581540Z Cloning into '/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Frameworks/Runestone'...
+2026-10-05T09:52:10.2927530Z Submodule path 'Frameworks/Runestone': checked out 'baeb3cbf8332d26b4f7b4c175a01f288ebbf3e7f'
+2026-10-05T09:52:10.3091270Z ##[group]Run actions/checkout@v4
+2026-10-05T09:52:10.3091590Z with:
+2026-10-05T09:52:10.3091790Z   repository: lambret-1/SFI-MITM
+2026-10-05T09:52:10.3092020Z   ref: sing-box
+2026-10-05T09:52:10.3094540Z   token: ***
+2026-10-05T09:52:10.3094820Z   path: sing-box-core
+2026-10-05T09:52:10.3095280Z   ssh-strict: true
+2026-10-05T09:52:10.3095530Z   ssh-user: git
+2026-10-05T09:52:10.3095910Z   persist-credentials: true
+2026-10-05T09:52:10.3096160Z   clean: true
+2026-10-05T09:52:10.3096460Z   sparse-checkout-cone-mode: true
+2026-10-05T09:52:10.3096710Z   fetch-depth: 1
+2026-10-05T09:52:10.3096920Z   fetch-tags: false
+2026-10-05T09:52:10.3097270Z   show-progress: true
+2026-10-05T09:52:10.3097560Z   lfs: false
+2026-10-05T09:52:10.3097780Z   submodules: false
+2026-10-05T09:52:10.3098040Z   set-safe-directory: true
+2026-10-05T09:52:10.3098290Z   allow-unsafe-pr-checkout: false
+2026-10-05T09:52:10.3098530Z env:
+2026-10-05T09:52:10.3098720Z   GO_VERSION: 1.25.5
+2026-10-05T09:52:10.3098940Z   XCODE_SCHEME: SFI
+2026-10-05T09:52:10.3099150Z   BUILD_CONFIGURATION: Release
+2026-10-05T09:52:10.3099410Z   DERIVED_DATA_PATH: build/DerivedData
+2026-10-05T09:52:10.3099730Z ##[endgroup]
+2026-10-05T09:52:10.4149990Z Syncing repository: lambret-1/SFI-MITM
+2026-10-05T09:52:10.4152420Z ##[group]Getting Git version info
+2026-10-05T09:52:10.4152840Z Working directory is '/Users/runner/work/SFI-MITM/SFI-MITM/sing-box-core'
+2026-10-05T09:52:10.4175990Z [command]/opt/homebrew/bin/git version
+2026-10-05T09:52:10.4236020Z git version 2.55.0
+2026-10-05T09:52:10.4246160Z ##[endgroup]
+2026-10-05T09:52:10.4251090Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/09f2718a-b434-40df-9bc1-533db92396d1/.gitconfig'
+2026-10-05T09:52:10.4257520Z Temporarily overriding HOME='/Users/runner/work/_temp/09f2718a-b434-40df-9bc1-533db92396d1' before making global git config changes
+2026-10-05T09:52:10.4258260Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-05T09:52:10.4260510Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/SFI-MITM/SFI-MITM/sing-box-core
+2026-10-05T09:52:10.4324110Z ##[group]Initializing the repository
+2026-10-05T09:52:10.4327260Z [command]/opt/homebrew/bin/git init /Users/runner/work/SFI-MITM/SFI-MITM/sing-box-core
+2026-10-05T09:52:10.4429800Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-05T09:52:10.4431470Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-05T09:52:10.4432070Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-05T09:52:10.4432440Z hint: call:
+2026-10-05T09:52:10.4432980Z hint:
+2026-10-05T09:52:10.4433270Z hint: 	git config --global init.defaultBranch <name>
+2026-10-05T09:52:10.4433760Z hint:
+2026-10-05T09:52:10.4434150Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-05T09:52:10.4434640Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-05T09:52:10.4435050Z hint:
+2026-10-05T09:52:10.4435360Z hint: 	git branch -m <name>
+2026-10-05T09:52:10.4435620Z hint:
+2026-10-05T09:52:10.4435950Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-05T09:52:10.4436480Z Initialized empty Git repository in /Users/runner/work/SFI-MITM/SFI-MITM/sing-box-core/.git/
+2026-10-05T09:52:10.4438820Z [command]/opt/homebrew/bin/git remote add origin https://github.com/lambret-1/SFI-MITM
+2026-10-05T09:52:10.4501660Z ##[endgroup]
+2026-10-05T09:52:10.4502100Z ##[group]Disabling automatic garbage collection
+2026-10-05T09:52:10.4504030Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+2026-10-05T09:52:10.4573500Z ##[endgroup]
+2026-10-05T09:52:10.4573960Z ##[group]Setting up auth
+2026-10-05T09:52:10.4574440Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-05T09:52:10.4628790Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-05T09:52:10.5389220Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-05T09:52:10.5442650Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-05T09:52:10.6122370Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-05T09:52:10.6177160Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-05T09:52:10.6810790Z [command]/opt/homebrew/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-05T09:52:10.6860620Z ##[endgroup]
+2026-10-05T09:52:10.6861070Z ##[group]Fetching the repository
+2026-10-05T09:52:10.6866150Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +refs/heads/sing-box*:refs/remotes/origin/sing-box* +refs/tags/sing-box*:refs/tags/sing-box*
+2026-10-05T09:52:11.8568140Z From https://github.com/lambret-1/SFI-MITM
+2026-10-05T09:52:11.8568800Z  * [new branch]      sing-box           -> origin/sing-box
+2026-10-05T09:52:11.8569170Z  * [new branch]      sing-box-for-apple -> origin/sing-box-for-apple
+2026-10-05T09:52:11.8571710Z ##[endgroup]
+2026-10-05T09:52:11.8572100Z ##[group]Determining the checkout info
+2026-10-05T09:52:11.8577300Z [command]/opt/homebrew/bin/git branch --list --remote origin/sing-box
+2026-10-05T09:52:11.8642300Z   origin/sing-box
+2026-10-05T09:52:11.8645210Z ##[endgroup]
+2026-10-05T09:52:11.8649460Z [command]/opt/homebrew/bin/git sparse-checkout disable
+2026-10-05T09:52:11.8721770Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-05T09:52:11.8780460Z ##[group]Checking out the ref
+2026-10-05T09:52:11.8783380Z [command]/opt/homebrew/bin/git checkout --progress --force -B sing-box refs/remotes/origin/sing-box
+2026-10-05T09:52:12.0408380Z Switched to a new branch 'sing-box'
+2026-10-05T09:52:12.0411150Z branch 'sing-box' set up to track 'origin/sing-box'.
+2026-10-05T09:52:12.0415760Z ##[endgroup]
+2026-10-05T09:52:12.0487810Z [command]/opt/homebrew/bin/git log -1 --format=%H
+2026-10-05T09:52:12.0549050Z 81391ec5d140760bd7301052c2448b5a8194a68c
+2026-10-05T09:52:12.0623290Z ##[group]Run CORE_SHA=$(cd sing-box-core && git rev-parse HEAD)
+2026-10-05T09:52:12.0623800Z [36;1mCORE_SHA=$(cd sing-box-core && git rev-parse HEAD)[0m
+2026-10-05T09:52:12.0624310Z [36;1mecho "core_sha=$CORE_SHA" >> $GITHUB_OUTPUT[0m
+2026-10-05T09:52:12.0624630Z [36;1mecho "core_sha_short=${CORE_SHA:0:8}" >> $GITHUB_OUTPUT[0m
+2026-10-05T09:52:12.0656020Z shell: /bin/bash -e {0}
+2026-10-05T09:52:12.0656210Z env:
+2026-10-05T09:52:12.0656360Z   GO_VERSION: 1.25.5
+2026-10-05T09:52:12.0656550Z   XCODE_SCHEME: SFI
+2026-10-05T09:52:12.0656710Z   BUILD_CONFIGURATION: Release
+2026-10-05T09:52:12.0656920Z   DERIVED_DATA_PATH: build/DerivedData
+2026-10-05T09:52:12.0657160Z ##[endgroup]
+2026-10-05T09:52:12.1062210Z ##[group]Run actions/setup-go@v5
+2026-10-05T09:52:12.1062680Z with:
+2026-10-05T09:52:12.1063000Z   go-version: 1.25.5
+2026-10-05T09:52:12.1063260Z   cache: true
+2026-10-05T09:52:12.1063590Z   cache-dependency-path: sing-box-core/go.sum
+2026-10-05T09:52:12.1064010Z   check-latest: false
+2026-10-05T09:52:12.1066040Z   token: ***
+2026-10-05T09:52:12.1066220Z env:
+2026-10-05T09:52:12.1066440Z   GO_VERSION: 1.25.5
+2026-10-05T09:52:12.1066640Z   XCODE_SCHEME: SFI
+2026-10-05T09:52:12.1066890Z   BUILD_CONFIGURATION: Release
+2026-10-05T09:52:12.1067130Z   DERIVED_DATA_PATH: build/DerivedData
+2026-10-05T09:52:12.1067360Z ##[endgroup]
+2026-10-05T09:52:12.2335820Z Setup go version spec 1.25.5
+2026-10-05T09:52:12.2352700Z Attempting to download 1.25.5...
+2026-10-05T09:52:12.2529890Z (node:1360) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-05T09:52:12.2530940Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-05T09:52:12.8781980Z matching 1.25.5...
+2026-10-05T09:52:12.8855360Z Acquiring 1.25.5 from https://github.com/actions/go-versions/releases/download/1.25.5-19880500865/go-1.25.5-darwin-arm64.tar.gz
+2026-10-05T09:52:13.6154860Z Extracting Go...
+2026-10-05T09:52:13.6296050Z [command]/usr/bin/tar xz -C /Users/runner/work/_temp/d9982e08-c0cd-4e7a-8ad4-e0f69b7d505d -f /Users/runner/work/_temp/58525e91-1677-43bf-b624-9379ddd54656
+2026-10-05T09:52:16.7155130Z Successfully extracted go to /Users/runner/work/_temp/d9982e08-c0cd-4e7a-8ad4-e0f69b7d505d
+2026-10-05T09:52:16.7155920Z Adding to the cache ...
+2026-10-05T09:52:23.6195180Z Successfully cached go to /Users/runner/hostedtoolcache/go/1.25.5/arm64
+2026-10-05T09:52:23.6198960Z Added go to the path
+2026-10-05T09:52:23.6203840Z Successfully set up Go version 1.25.5
+2026-10-05T09:52:23.7648150Z [command]/Users/runner/hostedtoolcache/go/1.25.5/arm64/bin/go env GOMODCACHE
+2026-10-05T09:52:23.7661880Z [command]/Users/runner/hostedtoolcache/go/1.25.5/arm64/bin/go env GOCACHE
+2026-10-05T09:52:23.7722560Z /Users/runner/go/pkg/mod
+2026-10-05T09:52:23.7724010Z /Users/runner/Library/Caches/go-build
+2026-10-05T09:52:23.9496060Z Cache hit for: setup-go-macOS-arm64-go-1.25.5-7e7122e6fc045e96626e7f06cb6b951fa91a910449b2a5276450d963fc433cca
+2026-10-05T09:52:23.9570440Z (node:1360) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-05T09:52:25.1088200Z Received 92274688 of 874423243 (10.6%), 87.6 MBs/sec
+2026-10-05T09:52:26.1085740Z Received 213909504 of 874423243 (24.5%), 101.8 MBs/sec
+2026-10-05T09:52:27.1090010Z Received 335544320 of 874423243 (38.4%), 106.5 MBs/sec
+2026-10-05T09:52:28.1084910Z Received 448790528 of 874423243 (51.3%), 106.9 MBs/sec
+2026-10-05T09:52:29.1154350Z Received 536870912 of 874423243 (61.4%), 102.3 MBs/sec
+2026-10-05T09:52:30.1593710Z Received 671088640 of 874423243 (76.7%), 105.7 MBs/sec
+2026-10-05T09:52:31.1580690Z Received 788529152 of 874423243 (90.2%), 106.6 MBs/sec
+2026-10-05T09:52:32.1603610Z Received 874423243 of 874423243 (100.0%), 103.5 MBs/sec
+2026-10-05T09:52:32.1614120Z Cache Size: ~834 MB (874423243 B)
+2026-10-05T09:52:32.1755310Z [command]/opt/homebrew/bin/gtar -xf /Users/runner/work/_temp/64a798d7-12f5-43f5-b0c3-7621ebed75f4/cache.tzst -P -C /Users/runner/work/SFI-MITM/SFI-MITM --delay-directory-restore --use-compress-program unzstd
+2026-10-05T09:52:43.8302180Z Cache restored successfully
+2026-10-05T09:52:43.8957330Z Cache restored from key: setup-go-macOS-arm64-go-1.25.5-7e7122e6fc045e96626e7f06cb6b951fa91a910449b2a5276450d963fc433cca
+2026-10-05T09:52:43.9073970Z go version go1.25.5 darwin/arm64
+2026-10-05T09:52:43.9074210Z 
+2026-10-05T09:52:43.9074830Z ##[group]go env
+2026-10-05T09:52:45.6272190Z AR='ar'
+2026-10-05T09:52:45.6272860Z CC='clang'
+2026-10-05T09:52:45.6274680Z CGO_CFLAGS='-O2 -g'
+2026-10-05T09:52:45.6275180Z CGO_CPPFLAGS=''
+2026-10-05T09:52:45.6279550Z CGO_CXXFLAGS='-O2 -g'
+2026-10-05T09:52:45.6280000Z CGO_ENABLED='1'
+2026-10-05T09:52:45.6280240Z CGO_FFLAGS='-O2 -g'
+2026-10-05T09:52:45.6280530Z CGO_LDFLAGS='-O2 -g'
+2026-10-05T09:52:45.6280890Z CXX='clang++'
+2026-10-05T09:52:45.6281420Z GCCGO='gccgo'
+2026-10-05T09:52:45.6282230Z GO111MODULE=''
+2026-10-05T09:52:45.6282870Z GOARCH='arm64'
+2026-10-05T09:52:45.6283170Z GOARM64='v8.0'
+2026-10-05T09:52:45.6283490Z GOAUTH='netrc'
+2026-10-05T09:52:45.6283860Z GOBIN=''
+2026-10-05T09:52:45.6284470Z GOCACHE='/Users/runner/Library/Caches/go-build'
+2026-10-05T09:52:45.6284920Z GOCACHEPROG=''
+2026-10-05T09:52:45.6285130Z GODEBUG=''
+2026-10-05T09:52:45.6285580Z GOENV='/Users/runner/Library/Application Support/go/env'
+2026-10-05T09:52:45.6286130Z GOEXE=''
+2026-10-05T09:52:45.6286400Z GOEXPERIMENT=''
+2026-10-05T09:52:45.6286880Z GOFIPS140='off'
+2026-10-05T09:52:45.6287580Z GOFLAGS=''
+2026-10-05T09:52:45.6288600Z GOGCCFLAGS='-fPIC -arch arm64 -pthread -fno-caret-diagnostics -Qunused-arguments -fmessage-length=0 -ffile-prefix-map=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/go-build655086127=/tmp/go-build -gno-record-gcc-switches -fno-common'
+2026-10-05T09:52:45.6290000Z GOHOSTARCH='arm64'
+2026-10-05T09:52:45.6290270Z GOHOSTOS='darwin'
+2026-10-05T09:52:45.6290780Z GOINSECURE=''
+2026-10-05T09:52:45.6291140Z GOMOD='/dev/null'
+2026-10-05T09:52:45.6291450Z GOMODCACHE='/Users/runner/go/pkg/mod'
+2026-10-05T09:52:45.6291860Z GONOPROXY=''
+2026-10-05T09:52:45.6292370Z GONOSUMDB=''
+2026-10-05T09:52:45.6293960Z GOOS='darwin'
+2026-10-05T09:52:45.6296690Z GOPATH='/Users/runner/go'
+2026-10-05T09:52:45.6297090Z GOPRIVATE=''
+2026-10-05T09:52:45.6297520Z GOPROXY='https://proxy.golang.org,direct'
+2026-10-05T09:52:45.6299220Z GOROOT='/Users/runner/hostedtoolcache/go/1.25.5/arm64'
+2026-10-05T09:52:45.6300440Z GOSUMDB='sum.golang.org'
+2026-10-05T09:52:45.6301930Z GOTELEMETRY='local'
+2026-10-05T09:52:45.6303330Z GOTELEMETRYDIR='/Users/runner/Library/Application Support/go/telemetry'
+2026-10-05T09:52:45.6305020Z GOTMPDIR=''
+2026-10-05T09:52:45.6307200Z GOTOOLCHAIN='auto'
+2026-10-05T09:52:45.6308700Z GOTOOLDIR='/Users/runner/hostedtoolcache/go/1.25.5/arm64/pkg/tool/darwin_arm64'
+2026-10-05T09:52:45.6310900Z GOVCS=''
+2026-10-05T09:52:45.6311810Z GOVERSION='go1.25.5'
+2026-10-05T09:52:45.6312090Z GOWORK=''
+2026-10-05T09:52:45.6313770Z PKG_CONFIG='pkg-config'
+2026-10-05T09:52:45.6314040Z 
+2026-10-05T09:52:45.6314620Z ##[endgroup]
+2026-10-05T09:52:45.6717840Z ##[group]Run actions/cache@v4
+2026-10-05T09:52:45.6718130Z with:
+2026-10-05T09:52:45.6718320Z   path: ~/go/bin
+2026-10-05T09:52:45.6718520Z   key: macOS-gomobile-1.25.5
+2026-10-05T09:52:45.6718790Z   enableCrossOsArchive: false
+2026-10-05T09:52:45.6719030Z   fail-on-cache-miss: false
+2026-10-05T09:52:45.6719250Z   lookup-only: false
+2026-10-05T09:52:45.6719410Z   save-always: false
+2026-10-05T09:52:45.6719590Z env:
+2026-10-05T09:52:45.6719730Z   GO_VERSION: 1.25.5
+2026-10-05T09:52:45.6719950Z   XCODE_SCHEME: SFI
+2026-10-05T09:52:45.6720170Z   BUILD_CONFIGURATION: Release
+2026-10-05T09:52:45.6720510Z   DERIVED_DATA_PATH: build/DerivedData
+2026-10-05T09:52:45.6720710Z ##[endgroup]
+2026-10-05T09:52:45.8844070Z (node:1697) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-05T09:52:45.8844830Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-05T09:52:46.0819070Z (node:1697) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-05T09:52:46.0885390Z Cache hit for: macOS-gomobile-1.25.5
+2026-10-05T09:52:46.9606600Z Received 10774234 of 10774234 (100.0%), 14.4 MBs/sec
+2026-10-05T09:52:46.9609230Z Cache Size: ~10 MB (10774234 B)
+2026-10-05T09:52:46.9646530Z [command]/opt/homebrew/bin/gtar -xf /Users/runner/work/_temp/59ad3a02-d3c5-4336-a734-64b9fd5e4932/cache.tzst -P -C /Users/runner/work/SFI-MITM/SFI-MITM --delay-directory-restore --use-compress-program unzstd
+2026-10-05T09:52:47.0121570Z Cache restored successfully
+2026-10-05T09:52:47.0431520Z Cache restored from key: macOS-gomobile-1.25.5
+2026-10-05T09:52:47.0488490Z ##[group]Run if [ ! -f ~/go/bin/gomobile ]; then
+2026-10-05T09:52:47.0488820Z [36;1mif [ ! -f ~/go/bin/gomobile ]; then[0m
+2026-10-05T09:52:47.0489170Z [36;1m  go install github.com/sagernet/gomobile/cmd/gomobile@latest[0m
+2026-10-05T09:52:47.0489500Z [36;1m  gomobile init[0m
+2026-10-05T09:52:47.0489690Z [36;1mfi[0m
+2026-10-05T09:52:47.0688520Z shell: /bin/bash -e {0}
+2026-10-05T09:52:47.0688760Z env:
+2026-10-05T09:52:47.0688930Z   GO_VERSION: 1.25.5
+2026-10-05T09:52:47.0689130Z   XCODE_SCHEME: SFI
+2026-10-05T09:52:47.0689380Z   BUILD_CONFIGURATION: Release
+2026-10-05T09:52:47.0689610Z   DERIVED_DATA_PATH: build/DerivedData
+2026-10-05T09:52:47.0689840Z ##[endgroup]
+2026-10-05T09:52:47.1170870Z ##[group]Run actions/cache@v4
+2026-10-05T09:52:47.1171120Z with:
+2026-10-05T09:52:47.1171310Z   path: sing-box-core/Libbox.xcframework
+2026-10-05T09:52:47.1171600Z   key: libbox-ios-arm64-81391ec5d140760bd7301052c2448b5a8194a68c
+2026-10-05T09:52:47.1171910Z   restore-keys: libbox-ios-arm64-
+2026-10-05T09:52:47.1172140Z   enableCrossOsArchive: false
+2026-10-05T09:52:47.1172340Z   fail-on-cache-miss: false
+2026-10-05T09:52:47.1172540Z   lookup-only: false
+2026-10-05T09:52:47.1172720Z   save-always: false
+2026-10-05T09:52:47.1172890Z env:
+2026-10-05T09:52:47.1173050Z   GO_VERSION: 1.25.5
+2026-10-05T09:52:47.1173240Z   XCODE_SCHEME: SFI
+2026-10-05T09:52:47.1173460Z   BUILD_CONFIGURATION: Release
+2026-10-05T09:52:47.1173700Z   DERIVED_DATA_PATH: build/DerivedData
+2026-10-05T09:52:47.1173940Z ##[endgroup]
+2026-10-05T09:52:47.2242420Z (node:1704) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-05T09:52:47.2243170Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-05T09:52:47.3767930Z Cache hit for: libbox-ios-arm64-81391ec5d140760bd7301052c2448b5a8194a68c
+2026-10-05T09:52:47.3842480Z (node:1704) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-05T09:52:48.2170450Z Received 38499045 of 38499045 (100.0%), 54.9 MBs/sec
+2026-10-05T09:52:48.2172070Z Cache Size: ~37 MB (38499045 B)
+2026-10-05T09:52:48.2195880Z [command]/opt/homebrew/bin/gtar -xf /Users/runner/work/_temp/384b6207-9b46-4db0-a50b-0f431fd7c048/cache.tzst -P -C /Users/runner/work/SFI-MITM/SFI-MITM --delay-directory-restore --use-compress-program unzstd
+2026-10-05T09:52:48.4522420Z Cache restored successfully
+2026-10-05T09:52:48.4612750Z Cache restored from key: libbox-ios-arm64-81391ec5d140760bd7301052c2448b5a8194a68c
+2026-10-05T09:52:48.4971690Z ##[group]Run rm -rf sfi/Libbox.xcframework
+2026-10-05T09:52:48.4972020Z [36;1mrm -rf sfi/Libbox.xcframework[0m
+2026-10-05T09:52:48.4972380Z [36;1mcp -R sing-box-core/Libbox.xcframework sfi/Libbox.xcframework[0m
+2026-10-05T09:52:48.5003170Z shell: /bin/bash -e {0}
+2026-10-05T09:52:48.5003380Z env:
+2026-10-05T09:52:48.5003550Z   GO_VERSION: 1.25.5
+2026-10-05T09:52:48.5003730Z   XCODE_SCHEME: SFI
+2026-10-05T09:52:48.5003930Z   BUILD_CONFIGURATION: Release
+2026-10-05T09:52:48.5004150Z   DERIVED_DATA_PATH: build/DerivedData
+2026-10-05T09:52:48.5004380Z ##[endgroup]
+2026-10-05T09:52:48.6585130Z ##[group]Run set +e
+2026-10-05T09:52:48.6585480Z [36;1mset +e[0m
+2026-10-05T09:52:48.6586170Z [36;1mxcodebuild \[0m
+2026-10-05T09:52:48.6586490Z [36;1m  -project sing-box.xcodeproj \[0m
+2026-10-05T09:52:48.6586790Z [36;1m  -scheme "SFI" \[0m
+2026-10-05T09:52:48.6587070Z [36;1m  -configuration "Release" \[0m
+2026-10-05T09:52:48.6587400Z [36;1m  -destination 'generic/platform=iOS' \[0m
+2026-10-05T09:52:48.6587730Z [36;1m  -derivedDataPath "build/DerivedData" \[0m
+2026-10-05T09:52:48.6588040Z [36;1m  ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \[0m
+2026-10-05T09:52:48.6588340Z [36;1m  DEBUG_INFORMATION_FORMAT=dwarf \[0m
+2026-10-05T09:52:48.6588660Z [36;1m  BUILD_LIBRARY_FOR_DISTRIBUTION=NO \[0m
+2026-10-05T09:52:48.6589000Z [36;1m  SWIFT_OPTIMIZATION_LEVEL=-O \[0m
+2026-10-05T09:52:48.6589380Z [36;1m  CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \[0m
+2026-10-05T09:52:48.6589790Z [36;1m  CODE_SIGNING_ALLOWED=NO AD_HOC_CODE_SIGNING_ALLOWED=YES \[0m
+2026-10-05T09:52:48.6590170Z [36;1m  build > build.log 2>&1[0m
+2026-10-05T09:52:48.6590410Z [36;1mBUILD_EXIT=$?[0m
+2026-10-05T09:52:48.6590620Z [36;1mset -e[0m
+2026-10-05T09:52:48.6590810Z [36;1mif [ "$BUILD_EXIT" -ne 0 ]; then[0m
+2026-10-05T09:52:48.6591060Z [36;1m  echo "❌ xcodebuild 构建失败"[0m
+2026-10-05T09:52:48.6591330Z [36;1m  grep -n "error:" build.log | head -40[0m
+2026-10-05T09:52:48.6591600Z [36;1m  tail -50 build.log[0m
+2026-10-05T09:52:48.6591810Z [36;1m  exit 1[0m
+2026-10-05T09:52:48.6592000Z [36;1mfi[0m
+2026-10-05T09:52:48.6592190Z [36;1mecho "✅ xcodebuild 构建成功"[0m
+2026-10-05T09:52:48.6631970Z shell: /bin/bash -e {0}
+2026-10-05T09:52:48.6632230Z env:
+2026-10-05T09:52:48.6632450Z   GO_VERSION: 1.25.5
+2026-10-05T09:52:48.6632680Z   XCODE_SCHEME: SFI
+2026-10-05T09:52:48.6633000Z   BUILD_CONFIGURATION: Release
+2026-10-05T09:52:48.6633220Z   DERIVED_DATA_PATH: build/DerivedData
+2026-10-05T09:52:48.6633490Z ##[endgroup]
+2026-10-05T09:57:10.2578660Z ❌ xcodebuild 构建失败
+2026-10-05T09:57:10.2868420Z 6199:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/OOMReportManager.swift:73:95: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2870210Z 6202:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/OOMReportManager.swift:110:86: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2871430Z 6205:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/PowerReportManager.swift:70:95: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2872510Z 6208:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/PowerReportManager.swift:117:86: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2873880Z 6211:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/OOMReportArchive.swift:25:44: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2874860Z 6214:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/OOMReportArchive.swift:29:44: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2876460Z 6217:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/OOMReportArchive.swift:33:44: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2882840Z 6220:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/OOMReportArchive.swift:51:38: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2885740Z 6223:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/OOMReportArchive.swift:51:70: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2888380Z 6226:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/OOMReportArchive.swift:51:100: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2890770Z 6229:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/OOMReportArchive.swift:58:9: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2893680Z 6232:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/OOMReportArchive.swift:62:9: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2907720Z 6235:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/PowerReportArchive.swift:25:44: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2927330Z 6238:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/PowerReportArchive.swift:29:44: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2949760Z 6241:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/PowerReportArchive.swift:41:44: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2952180Z 6244:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/PowerReportArchive.swift:59:38: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2954780Z 6247:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/PowerReportArchive.swift:59:70: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2957340Z 6250:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/PowerReportArchive.swift:59:134: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2959970Z 6253:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/PowerReportArchive.swift:66:9: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2971780Z 6256:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/PowerReportArchive.swift:70:9: error: cannot find 'ReportArchive' in scope
+2026-10-05T09:57:10.2984740Z 
+2026-10-05T09:57:10.2991460Z SwiftDriverJobDiscovery normal arm64 Compiling InlineNode.swift, MarkdownParser.swift, AttributedStringInlineRenderer.swift, InlineTextStyles.swift, TextInlineRenderer.swift, BlockConfiguration.swift, BlockStyle.swift, CodeBlockConfiguration.swift, ListBullet.swift, ListMarkerConfiguration.swift, TableBackgroundStyle.swift, TableBorderStyle.swift, TableCellConfiguration.swift, TaskListMarkerConfiguration.swift, BackgroundColor.swift, EmptyTextStyle.swift, Font+FontProperties.swift, FontCapsVariant.swift, FontDigitVariant.swift, FontFamily.swift, FontFamilyVariant.swift (in target 'MarkdownUI' from project 'swift-markdown-ui')
+2026-10-05T09:57:10.3011920Z 
+2026-10-05T09:57:10.3023630Z SwiftDriver\ Compilation MarkdownUI normal arm64 com.apple.xcode.tools.swift.compiler (in target 'MarkdownUI' from project 'swift-markdown-ui')
+2026-10-05T09:57:10.3024920Z     cd /Users/runner/work/SFI-MITM/SFI-MITM/sfi/sing-box.xcodeproj
+2026-10-05T09:57:10.3079360Z     builtin-Swift-Compilation -- /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name MarkdownUI -O -enforce-exclusivity\=checked @/Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/Objects-normal/arm64/MarkdownUI.SwiftFileList -DSWIFT_PACKAGE -DXcode -plugin-path /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk -target arm64-apple-ios15.0 -g -module-cache-path /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -profile-coverage-mapping -profile-generate -suppress-warnings -swift-version 5 -I /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos -I /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib -F /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos/PackageFrameworks -F /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos/PackageFrameworks -F /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos/PackageFrameworks -F /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos -F /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks -F /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk/Developer/Library/Frameworks -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/SDKStatCaches.noindex/iphoneos18.5-22F76-a529daf784b3616c7c04a36aeb7f5c05.sdkstatcache -output-file-map /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/Objects-normal/arm64/MarkdownUI-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/Objects-normal/arm64/MarkdownUI.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/Objects-normal/arm64/MarkdownUI_const_extract_protocols.json -Xcc -I/Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/SourcePackages/checkouts/swift-cmark/src/include -Xcc -I/Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/SourcePackages/checkouts/swift-cmark/extensions/include -Xcc -I/Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos/include -Xcc -I/Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/DerivedSources -Xcc -DSWIFT_PACKAGE -emit-objc-header -emit-objc-header-path /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/Objects-normal/arm64/MarkdownUI-Swift.h -working-directory /Users/runner/work/SFI-MITM/SFI-MITM/sfi/sing-box.xcodeproj -experimental-emit-module-separately -disable-cmo
+2026-10-05T09:57:10.3137010Z 
+2026-10-05T09:57:10.3138560Z Ld /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos/MarkdownUI.o normal (in target 'MarkdownUI' from project 'swift-markdown-ui')
+2026-10-05T09:57:10.3141380Z     cd /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/SourcePackages/checkouts/swift-markdown-ui
+2026-10-05T09:57:10.3182750Z     /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios15.0 -r -isysroot /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk -Os -w -L/Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/EagerLinkingTBDs/Release-iphoneos -L/Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos -L/Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib -F/Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/EagerLinkingTBDs/Release-iphoneos -F/Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos/PackageFrameworks -F/Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos/PackageFrameworks -F/Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos/PackageFrameworks -F/Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos -iframework /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks -iframework /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk/Developer/Library/Frameworks -filelist /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/Objects-normal/arm64/MarkdownUI.LinkFileList -nostdlib -Xlinker -object_path_lto -Xlinker /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/Objects-normal/arm64/MarkdownUI_lto.o -Xlinker -debug_variant -Xlinker -dependency_info -Xlinker /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/Objects-normal/arm64/MarkdownUI_dependency_info.dat -fobjc-link-runtime -L/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphoneos -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/Objects-normal/arm64/MarkdownUI.swiftmodule -o /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos/MarkdownUI.o
+2026-10-05T09:57:10.3205210Z 
+2026-10-05T09:57:10.3206000Z ExtractAppIntentsMetadata (in target 'MarkdownUI' from project 'swift-markdown-ui')
+2026-10-05T09:57:10.3208280Z     cd /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/SourcePackages/checkouts/swift-markdown-ui
+2026-10-05T09:57:10.3224420Z     /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name MarkdownUI --sdk-root /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk --xcode-version 16F6 --platform-family iOS --deployment-target 15.0 --bundle-identifier swift-markdown-ui.MarkdownUI --output /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos/MarkdownUI.appintents --target-triple arm64-apple-ios15.0 --binary-file /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos/MarkdownUI.o --dependency-file /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/Objects-normal/arm64/MarkdownUI_dependency_info.dat --stringsdata-file /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/Objects-normal/arm64/MarkdownUI.SwiftFileList --metadata-file-list /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/MarkdownUI.DependencyMetadataFileList --static-metadata-file-list /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/MarkdownUI.DependencyStaticMetadataFileList --swift-const-vals-list /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Intermediates.noindex/swift-markdown-ui.build/Release-iphoneos/MarkdownUI.build/Objects-normal/arm64/MarkdownUI.SwiftConstValuesFileList --force --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
+2026-10-05T09:57:10.3231830Z 2026-10-05 09:57:06.098 appintentsmetadataprocessor[9528:31791] Starting appintentsmetadataprocessor export
+2026-10-05T09:57:10.3233110Z 2026-10-05 09:57:06.173 appintentsmetadataprocessor[9528:31791] Extracted no relevant App Intents symbols, skipping writing output
+2026-10-05T09:57:10.3233790Z 
+2026-10-05T09:57:10.3234470Z RegisterExecutionPolicyException /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos/MarkdownUI.o (in target 'MarkdownUI' from project 'swift-markdown-ui')
+2026-10-05T09:57:10.3235650Z     cd /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/SourcePackages/checkouts/swift-markdown-ui
+2026-10-05T09:57:10.3236820Z     builtin-RegisterExecutionPolicyException /Users/runner/work/SFI-MITM/SFI-MITM/sfi/build/DerivedData/Build/Products/Release-iphoneos/MarkdownUI.o
+2026-10-05T09:57:10.3237300Z 
+2026-10-05T09:57:10.3237910Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'cmark-gfm-extensions' from project 'cmark-gfm')
+2026-10-05T09:57:10.3239140Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'cmark-gfm' from project 'cmark-gfm')
+2026-10-05T09:57:10.3240600Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'WidgetExtension' from project 'sing-box')
+2026-10-05T09:57:10.3241760Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'TreeSitterJSON5Runestone' from project 'TreeSitterJSON5')
+2026-10-05T09:57:10.3243040Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'TreeSitterJSON5Queries' from project 'TreeSitterJSON5')
+2026-10-05T09:57:10.3244210Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'TreeSitterJSON5' from project 'TreeSitterJSON5')
+2026-10-05T09:57:10.3245290Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'TreeSitter' from project 'TreeSitter')
+2026-10-05T09:57:10.3246520Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'SwiftImageReadWrite' from project 'SwiftImageReadWrite')
+2026-10-05T09:57:10.3247520Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'SFI' from project 'sing-box')
+2026-10-05T09:57:10.3248470Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'Runestone' from project 'Runestone')
+2026-10-05T09:57:10.3320710Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'QRCodeGenerator' from project 'swift-qrcode-generator')
+2026-10-05T09:57:10.3321960Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'QRCode' from project 'QRCode')
+2026-10-05T09:57:10.3322910Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'NetworkImage' from project 'NetworkImage')
+2026-10-05T09:57:10.3324040Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'MarkdownUI' from project 'swift-markdown-ui')
+2026-10-05T09:57:10.3325040Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'IntentsExtension' from project 'sing-box')
+2026-10-05T09:57:10.3326040Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'GRDB' from project 'GRDB')
+2026-10-05T09:57:10.3326980Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'FileProviderExtension' from project 'sing-box')
+2026-10-05T09:57:10.3328160Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'Extension' from project 'sing-box')
+2026-10-05T09:57:10.3329690Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'BinaryCodable' from project 'BinaryCodable')
+2026-10-05T09:57:10.3330970Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'ApplicationLibrary' from project 'sing-box')
+2026-10-05T09:57:10.3331920Z note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'Library' from project 'sing-box')
+2026-10-05T09:57:10.3332480Z ** BUILD FAILED **
+2026-10-05T09:57:10.3332620Z 
+2026-10-05T09:57:10.3332620Z 
+2026-10-05T09:57:10.3332720Z The following build commands failed:
+2026-10-05T09:57:10.3333130Z 	CompileSwift normal arm64 (in target 'Library' from project 'sing-box')
+2026-10-05T09:57:10.3352510Z 	SwiftCompile normal arm64 Compiling\ CommandClient.swift,\ HTTPClient.swift,\ UserServiceXPC.swift,\ ScreenshotLocalization.swift,\ Profile+RW.swift,\ ExtensionProvider.swift,\ SystemExtension.swift,\ OOMReportManager.swift,\ UpdateTrack.swift,\ Profile+Date.swift,\ ProfileManager.swift,\ ExtensionErrors.swift,\ RootHelperXPC.swift,\ FilePath.swift,\ PKGDownloader.swift,\ Profile+Share.swift,\ Extension+Iterator.swift,\ OnDemandRule.swift,\ BlockingIO.swift,\ Variant.swift,\ HelperServiceManager.swift,\ UserServiceEndpointRegistry.swift,\ PowerReportManager.swift,\ SharedPreferences+Database.swift,\ ExtensionProfile.swift,\ OOMReportArchive.swift,\ UpdateInfo.swift,\ Profile.swift,\ Profile+Update.swift,\ ExtensionEnvironments.swift,\ RemoteServer.swift,\ Color+Extension.swift,\ GitHubUpdateChecker.swift,\ CommandXPC.swift,\ NEVPNStatus+isConnected.swift,\ AppConfiguration.swift,\ URL+SecurityScopedAccess.swift,\ Profile+Hashable.swift,\ ExtensionStartOptions.swift,\ UserServiceEndpointPublisher.swift,\ PowerReportArchive.swift,\ Library.swift,\ SharedPreferences.swift,\ ExtensionPlatformInterface.swift,\ Logger+Extension.swift,\ PKGInstaller.swift,\ Database.swift,\ Profile+Transferable.swift,\ Extension+RunBlocking.swift,\ OutboundGroup.swift,\ Bundle+Version.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/CommandClient.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/HTTPClient.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/UserServiceXPC.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/ScreenshotLocalization.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Database/Profile+RW.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/ExtensionProvider.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/SystemExtension.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/OOMReportManager.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Update/UpdateTrack.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Database/Profile+Date.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Database/ProfileManager.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/ExtensionErrors.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/RootHelperXPC.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/FilePath.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Update/PKGDownloader.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Database/Profile+Share.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/Extension+Iterator.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/OnDemandRule.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/BlockingIO.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/Variant.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/HelperServiceManager.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/UserServiceEndpointRegistry.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/PowerReportManager.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Database/SharedPreferences+Database.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/ExtensionProfile.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/OOMReportArchive.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Update/UpdateInfo.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Database/Profile.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Database/Profile+Update.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/ExtensionEnvironments.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/RemoteServer.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/Color+Extension.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Update/GitHubUpdateChecker.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/CommandXPC.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/NEVPNStatus+isConnected.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/AppConfiguration.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/URL+SecurityScopedAccess.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Database/Profile+Hashable.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/ExtensionStartOptions.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/UserServiceEndpointPublisher.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/PowerReportArchive.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Library.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Database/SharedPreferences.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/ExtensionPlatformInterface.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/Logger+Extension.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Update/PKGInstaller.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Database/Database.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Database/Profile+Transferable.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/Extension+RunBlocking.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Network/OutboundGroup.swift /Users/runner/work/SFI-MITM/SFI-MITM/sfi/Library/Shared/Bundle+Version.swift (in target 'Library' from project 'sing-box')
+2026-10-05T09:57:10.3369400Z 	Building project sing-box with scheme SFI and configuration Release
+2026-10-05T09:57:10.3369800Z (3 failures)
+2026-10-05T09:57:10.3395420Z ##[error]Process completed with exit code 1.
+2026-10-05T09:57:10.3713710Z ##[group]Run actions/upload-artifact@v4
+2026-10-05T09:57:10.3714600Z with:
+2026-10-05T09:57:10.3715100Z   name: build-logs
+2026-10-05T09:57:10.3715310Z   path: sfi/build.log
+sfi/build/DerivedData/Logs/
+
+2026-10-05T09:57:10.3715650Z   retention-days: 7
+2026-10-05T09:57:10.3715890Z   if-no-files-found: warn
+2026-10-05T09:57:10.3716240Z   compression-level: 6
+2026-10-05T09:57:10.3716420Z   overwrite: false
+2026-10-05T09:57:10.3716720Z   include-hidden-files: false
+2026-10-05T09:57:10.3717030Z env:
+2026-10-05T09:57:10.3717250Z   GO_VERSION: 1.25.5
+2026-10-05T09:57:10.3717530Z   XCODE_SCHEME: SFI
+2026-10-05T09:57:10.3717760Z   BUILD_CONFIGURATION: Release
+2026-10-05T09:57:10.3718050Z   DERIVED_DATA_PATH: build/DerivedData
+2026-10-05T09:57:10.3718400Z ##[endgroup]
+2026-10-05T09:57:11.0728530Z (node:9965) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-05T09:57:11.0740500Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-05T09:57:11.0800820Z Multiple search paths detected. Calculating the least common ancestor of all paths
+2026-10-05T09:57:11.0801970Z The least common ancestor is /Users/runner/work/SFI-MITM/SFI-MITM/sfi. This will be the root directory of the artifact
+2026-10-05T09:57:11.0802590Z With the provided path, there will be 8 files uploaded
+2026-10-05T09:57:11.0804700Z Artifact name is valid!
+2026-10-05T09:57:11.0805020Z Root directory input is valid!
+2026-10-05T09:57:11.4771750Z Beginning upload of artifact content to blob storage
+2026-10-05T09:57:11.4919520Z (node:9965) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-05T09:57:11.6786260Z Uploaded bytes 84396
+2026-10-05T09:57:11.7202840Z Finished uploading artifact content to blob storage!
+2026-10-05T09:57:11.7222530Z SHA256 digest of uploaded artifact zip is 1aa950764012bc7843625466627e216a41582d8db82a3fef494f587a712e063f
+2026-10-05T09:57:11.7225660Z Finalizing artifact upload
+2026-10-05T09:57:11.9458100Z Artifact build-logs.zip successfully finalized. Artifact ID 11336528922
+2026-10-05T09:57:11.9458860Z Artifact build-logs has been successfully uploaded! Final size is 84396 bytes. Artifact ID is 11336528922
+2026-10-05T09:57:11.9474200Z Artifact download URL: https://github.com/lambret-1/SFI-MITM/actions/runs/37292810666/artifacts/11336528922
+2026-10-05T09:57:11.9780220Z Post job cleanup.
+2026-10-05T09:57:12.1027050Z [command]/opt/homebrew/bin/git version
+2026-10-05T09:57:12.1535530Z git version 2.55.0
+2026-10-05T09:57:12.2043220Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/9985f493-926c-43ad-879e-03cfe45c89ab/.gitconfig'
+2026-10-05T09:57:12.2143600Z Temporarily overriding HOME='/Users/runner/work/_temp/9985f493-926c-43ad-879e-03cfe45c89ab' before making global git config changes
+2026-10-05T09:57:12.2194150Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-05T09:57:12.2197910Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/SFI-MITM/SFI-MITM/sing-box-core
+2026-10-05T09:57:12.2288440Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-05T09:57:12.2325340Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-05T09:57:12.3912970Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-05T09:57:12.4021390Z http.https://github.com/.extraheader
+2026-10-05T09:57:12.4428880Z [command]/opt/homebrew/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-05T09:57:12.4750220Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-05T09:57:12.6078430Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-05T09:57:12.6374100Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-05T09:57:12.7990820Z Post job cleanup.
+2026-10-05T09:57:12.9483180Z [command]/opt/homebrew/bin/git version
+2026-10-05T09:57:13.0016360Z git version 2.55.0
+2026-10-05T09:57:13.0524350Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/a7b2dd40-c4b3-408c-8b1d-99d89c5b9eb7/.gitconfig'
+2026-10-05T09:57:13.0626060Z Temporarily overriding HOME='/Users/runner/work/_temp/a7b2dd40-c4b3-408c-8b1d-99d89c5b9eb7' before making global git config changes
+2026-10-05T09:57:13.0673340Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-05T09:57:13.0760920Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/SFI-MITM/SFI-MITM/sfi
+2026-10-05T09:57:13.1057430Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-05T09:57:13.1371910Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-05T09:57:13.2047040Z Entering 'Frameworks/Runestone'
+2026-10-05T09:57:13.2414740Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-05T09:57:13.2501930Z http.https://github.com/.extraheader
+2026-10-05T09:57:13.2545760Z [command]/opt/homebrew/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-05T09:57:13.2619470Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-05T09:57:13.4108730Z Entering 'Frameworks/Runestone'
+2026-10-05T09:57:13.4381210Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-05T09:57:13.4441740Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-05T09:57:13.5531020Z Entering 'Frameworks/Runestone'
+2026-10-05T09:57:13.5678020Z file:/Users/runner/work/SFI-MITM/SFI-MITM/sfi/.git/modules/Frameworks/Runestone/config	remote.origin.url
+2026-10-05T09:57:13.5800320Z [command]/opt/homebrew/bin/git config --file /Users/runner/work/SFI-MITM/SFI-MITM/sfi/.git/modules/Frameworks/Runestone/config --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-05T09:57:13.6100950Z Cleaning up orphan processes
+2026-10-05T09:57:14.5787900Z Terminate orphan process: pid (6739) (ibtoold)
+2026-10-05T09:57:14.6610730Z Terminate orphan process: pid (6734) (ibtoold)
+2026-10-05T09:57:15.5400510Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

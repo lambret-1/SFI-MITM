@@ -24,10 +24,6 @@ struct ReportLabel: View {
                 HStack(spacing: 4) {
                     Image(systemName: origin == ReportArchive.tvOSDeviceOrigin ? "appletv.fill" : Self.localDeviceIcon)
                     Text(origin == ReportArchive.tvOSDeviceOrigin ? "Apple TV" : "Local")
-                    if kind == CrashReportMetadata.hangKind {
-                        Image(systemName: "hourglass")
-                        Text("Hang")
-                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
