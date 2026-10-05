@@ -198,7 +198,10 @@ def extract_doc_params(doc_path: Path) -> Dict[str, any]:
             result['top_level_fields'].add(field)
 
     # 提取入站类型
-    for inbound_type, _, _ in SFI_INBOUND_TYPES + SFI_NOT_APPLICABLE_INBOUNDS:
+    for inbound_type, _, _ in SFI_INBOUND_TYPES:
+        if re.search(rf'`{re.escape(inbound_type)}`', content):
+            result['inbound_types'].add(inbound_type)
+    for inbound_type, _ in SFI_NOT_APPLICABLE_INBOUNDS:
         if re.search(rf'`{re.escape(inbound_type)}`', content):
             result['inbound_types'].add(inbound_type)
 
@@ -207,29 +210,29 @@ def extract_doc_params(doc_path: Path) -> Dict[str, any]:
         if re.search(rf'`{re.escape(outbound_type)}`', content):
             result['outbound_types'].add(outbound_type)
 
-    # 提取 DNS 参数
+    # 提取 DNS 参数（支持反引号和JSON格式）
     for param, _, _ in SFI_DNS_PARAMS:
-        if re.search(rf'`dns\.{re.escape(param)}`|`{re.escape(param)}`', content):
+        if re.search(rf'`dns\.{re.escape(param)}`|`{re.escape(param)}`|"{re.escape(param)}"\s*:', content):
             result['dns_params'].add(param)
 
-    # 提取路由参数
+    # 提取路由参数（支持反引号和JSON格式）
     for param, _, _ in SFI_ROUTE_PARAMS:
-        if re.search(rf'`route\.{re.escape(param)}`|`{re.escape(param)}`', content):
+        if re.search(rf'`route\.{re.escape(param)}`|`{re.escape(param)}`|"{re.escape(param)}"\s*:', content):
             result['route_params'].add(param)
 
-    # 提取实验配置参数
+    # 提取实验配置参数（支持反引号和JSON格式）
     for param, _, _ in SFI_EXPERIMENTAL_PARAMS:
-        if re.search(rf'`experimental\.{re.escape(param)}`|`{re.escape(param)}`', content):
+        if re.search(rf'`experimental\.{re.escape(param)}`|`{re.escape(param)}`|"{re.escape(param)}"\s*:', content):
             result['experimental_params'].add(param)
 
-    # 提取服务类型
+    # 提取服务类型（支持反引号和JSON格式）
     for service_type, _, _ in SFI_SERVICE_TYPES:
-        if re.search(rf'`{re.escape(service_type)}`', content):
+        if re.search(rf'`{re.escape(service_type)}`|"{re.escape(service_type)}"', content):
             result['service_types'].add(service_type)
 
-    # 提取 TUN 参数
+    # 提取 TUN 参数（支持反引号和JSON格式）
     for param, _, _ in SFI_TUN_PARAMS:
-        if re.search(rf'`{re.escape(param)}`', content):
+        if re.search(rf'`{re.escape(param)}`|"{re.escape(param)}"\s*:', content):
             result['tun_params'].add(param)
 
     # 提取 API 方法
