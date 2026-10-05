@@ -69,16 +69,16 @@ public struct STUNTestView: View {
             }
 
             Section("Action") {
-                if viewModel.isRunning {
-                    FormButton {
+                Button {
+                    if viewModel.isRunning {
                         viewModel.cancel()
-                    } label: {
-                        Label("Cancel Test", systemImage: "stop.fill")
-                    }
-                } else {
-                    FormButton {
+                    } else {
                         viewModel.startTest(vpnConnected: environments.serviceAvailable)
-                    } label: {
+                    }
+                } label: {
+                    if viewModel.isRunning {
+                        Label("Cancel Test", systemImage: "stop.fill")
+                    } else {
                         Label("Start Test", systemImage: "play.fill")
                     }
                 }
