@@ -1,0 +1,81 @@
+name: 接入文档全量参数一致性检查
+
+on:
+  pull_request:
+    branches: [sing-box-for-apple]
+    paths:
+      - 'README/README.md'
+      - '.github/scripts/check-docs-full.py'
+      - '.github/workflows/doc-full-check.yml'
+  push:
+    branches: [sing-box-for-apple]
+    paths:
+      - 'README/README.md'
+      - '.github/scripts/check-docs-full.py'
+      - '.github/workflows/doc-full-check.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: doc-full-check-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  doc-full-check:
+    name: 接入文档全量参数仓库一致性检查
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: 检出 SFI 代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: sfi
+
+      - name: 检出 sing-box 核心代码
+        uses: actions/checkout@v4
+        with:
+          repository: lambret-1/SFI-MITM
+          ref: sing-box
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: sing-box-core
+
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 运行全量参数一致性检查
+        working-directory: sfi
+        run: |
+          echo "=========================================="
+          echo "  接入文档全量参数仓库一致性检查"
+          echo "  （文档参数 ↔ 内核代码 ↔ 客户端代码）"
+          echo "=========================================="
+          echo ""
+          python3 .github/scripts/check-docs-full.py \
+            --doc README/README.md \
+            --core ../sing-box-core \
+            --client . \
+            --output doc-full-check-report.md \
+            --json doc-full-check-result.json
+          CHECK_EXIT=$?
+          echo ""
+          echo "=== 检查退出码: $CHECK_EXIT ==="
+          exit $CHECK_EXIT
+
+      - name: 上传检查报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: doc-full-check-report
+          path: |
+            sfi/doc-full-check-report.md
+            sfi/doc-full-check-result.json
+          retention-days: 30
+
+      - name: 输出检查摘要到 Step Summary
+        if: always()
+        run: |
+          if [ -f sfi/doc-full-check-report.md ]; then
+            cat sfi/doc-full-check-report.md >> $GITHUB_STEP_SUMMARY
+          fi
