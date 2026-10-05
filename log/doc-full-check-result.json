@@ -757,6 +757,130 @@
         "LibboxSetXPCDialer",
         "LibboxSetup"
       ]
+    },
+    "registry_check": {
+      "inbounds": {
+        "doc_types": [
+          "anytls",
+          "cloudflare",
+          "direct",
+          "http",
+          "hysteria",
+          "hysteria2",
+          "mixed",
+          "naive",
+          "redirect",
+          "shadowsocks",
+          "shadowtls",
+          "snell",
+          "socks",
+          "trojan",
+          "tuic",
+          "tun",
+          "vless",
+          "vmess"
+        ],
+        "core_types": [
+          "anytls",
+          "cloudflare",
+          "direct",
+          "http",
+          "hysteria",
+          "hysteria2",
+          "mixed",
+          "naive",
+          "redirect",
+          "shadowsocks",
+          "shadowtls",
+          "snell",
+          "socks",
+          "trojan",
+          "tuic",
+          "tun",
+          "vless",
+          "vmess"
+        ],
+        "only_in_doc": [],
+        "only_in_core": [],
+        "consistent": true
+      },
+      "outbounds": {
+        "doc_types": [
+          "anytls",
+          "block",
+          "bridge",
+          "direct",
+          "http",
+          "hysteria",
+          "hysteria2",
+          "naive",
+          "selector",
+          "shadowsocks",
+          "shadowtls",
+          "snell",
+          "socks",
+          "ssh",
+          "tor",
+          "trojan",
+          "tuic",
+          "urltest",
+          "vless",
+          "vmess"
+        ],
+        "core_types": [
+          "anytls",
+          "block",
+          "bridge",
+          "direct",
+          "http",
+          "hysteria",
+          "hysteria2",
+          "naive",
+          "selector",
+          "shadowsocks",
+          "shadowtls",
+          "snell",
+          "socks",
+          "ssh",
+          "tor",
+          "trojan",
+          "tuic",
+          "urltest",
+          "vless",
+          "vmess"
+        ],
+        "only_in_doc": [],
+        "only_in_core": [],
+        "consistent": true
+      },
+      "services": {
+        "doc_types": [
+          "api",
+          "mitm"
+        ],
+        "core_types": [
+          "api",
+          "ccm",
+          "derp",
+          "mitm",
+          "ocm",
+          "oomkiller",
+          "resolved",
+          "ssmapi",
+          "usbip"
+        ],
+        "only_in_doc": [],
+        "only_in_core": [
+          "ccm",
+          "derp",
+          "ocm",
+          "oomkiller",
+          "resolved",
+          "ssmapi",
+          "usbip"
+        ],
+        "consistent": true
+      }
     }
   }
 }

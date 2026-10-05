@@ -184,6 +184,43 @@
 | outbound_types | `direct`, `http`, `selector`, `urltest` |
 | api_methods | `LibboxCheckConfig`, `LibboxFormatConfig`, `LibboxGenerateMITMCA`, `LibboxNewCommandServer`, `LibboxNewStandaloneCommandClient`, `LibboxSetXPCDialer`, `LibboxSetup` |
 
+### 11. 注册表一致性检查（文档 ↔ 内核）
+
+#### 11.1 入站注册表
+
+| 项目 | 内容 |
+|------|------|
+| 文档类型数 | 18 |
+| 内核类型数 | 18 |
+| 一致性 | ✅ 一致 |
+
+#### 11.2 出站注册表
+
+| 项目 | 内容 |
+|------|------|
+| 文档类型数 | 20 |
+| 内核类型数 | 20 |
+| 一致性 | ✅ 一致 |
+
+#### 11.3 服务注册表
+
+| 项目 | 内容 |
+|------|------|
+| 文档类型数 | 2 |
+| 内核类型数 | 9 |
+| 一致性 | ✅ 一致 |
+
+**ℹ️ 内核有但文档未列出的类型**: `ccm`, `derp`, `ocm`, `oomkiller`, `resolved`, `ssmapi`, `usbip`
+
+**修改建议**:
+- 如 SFI 客户端需要使用 `ccm` 服务，请在文档中补充说明；如为高级服务，可忽略
+- 如 SFI 客户端需要使用 `derp` 服务，请在文档中补充说明；如为高级服务，可忽略
+- 如 SFI 客户端需要使用 `ocm` 服务，请在文档中补充说明；如为高级服务，可忽略
+- 如 SFI 客户端需要使用 `oomkiller` 服务，请在文档中补充说明；如为高级服务，可忽略
+- 如 SFI 客户端需要使用 `resolved` 服务，请在文档中补充说明；如为高级服务，可忽略
+- 如 SFI 客户端需要使用 `ssmapi` 服务，请在文档中补充说明；如为高级服务，可忽略
+- 如 SFI 客户端需要使用 `usbip` 服务，请在文档中补充说明；如为高级服务，可忽略
+
 ## 🟡 警告详情（建议优化）
 
 1. [顶层字段] 必须字段 `inbounds` 未在内核 option 中找到定义
