@@ -1,237 +1,259 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-接入文档全量参数仓库一致性检查脚本
+SFI 客户端接入文档参数一致性检查脚本
+
+聚焦于 SFI iOS 客户端实际接入 sing-box 内核的参数，
+排除 Linux 特有、服务端功能等与 SFI 无关的参数。
+
 检查维度：
-  1. 文档参数提取：从 JSON 示例、文字描述中提取所有参数名
-  2. 内核代码一致性：文档参数是否在 sing-box 内核 option 包中有定义
-  3. 参数类型一致性：文档描述的类型是否与内核代码一致
-  4. 枚举值一致性：文档列出的枚举值是否与内核代码一致
-  5. 客户端使用检查：文档参数是否在 SFI 客户端代码中被引用
-  6. API 签名一致性：文档描述的 Libbox API 方法是否与实际代码一致
-  7. 注册表一致性：文档列出的入站/出站/端点/DNS/服务类型是否与内核注册表一致
-输出：Markdown 报告 + JSON 结果
+1. 顶层字段完整性（SFI 必须/可选/不适用）
+2. 入站类型（SFI 实际使用的类型）
+3. 出站类型（SFI 实际使用的类型）
+4. DNS 配置参数
+5. 路由配置参数
+6. 实验配置参数
+7. 服务配置参数（api/mitm）
+8. TUN 入站参数（iOS 必须）
+9. libbox API 方法
+10. 客户端代码引用检查
 """
 
 import argparse
 import json
-import os
 import re
 import sys
 from pathlib import Path
-from dataclasses import dataclass, field
-from typing import Dict, List, Set, Tuple, Optional
+from typing import Dict, List, Tuple, Set, Optional
 
 
-# ========== 数据结构 ==========
-@dataclass
-class ParamInfo:
-    """参数信息"""
-    name: str
-    in_doc: bool = False
-    in_core: bool = False
-    in_client: bool = False
-    doc_type: str = ""
-    core_type: str = ""
-    core_file: str = ""
-    enum_values_doc: List[str] = field(default_factory=list)
-    enum_values_core: List[str] = field(default_factory=list)
-    status: str = "unknown"  # pass/warn/error
-    note: str = ""
+# ========== SFI 客户端接入参数定义 ==========
 
+# 顶层字段定义：(字段名, 是否SFI必须, 说明)
+SFI_TOP_LEVEL_FIELDS = [
+    ("log", False, "日志配置（level/output/timestamp）"),
+    ("dns", False, "DNS 配置（servers/rules/final/strategy）"),
+    ("inbounds", True, "入站配置列表（iOS 必须使用 tun）"),
+    ("outbounds", True, "出站配置列表（direct/selector/各协议）"),
+    ("route", False, "路由配置（rules/final/auto_detect_interface）"),
+    ("services", False, "服务配置列表（api/mitm）"),
+    ("experimental", False, "实验性功能（clash_api/v2ray_api/cache_file）"),
+]
 
-@dataclass
-class ApiInfo:
-    """API 方法信息"""
-    name: str
-    in_doc: bool = False
-    in_core: bool = False
-    signature_doc: str = ""
-    signature_core: str = ""
-    status: str = "unknown"
-    note: str = ""
+# 不适用 SFI 的顶层字段
+SFI_NOT_APPLICABLE_TOP_LEVEL = [
+    ("ntp", "iOS 系统自动时间同步，无需配置"),
+    ("certificate", "证书管理，SFI 客户端不直接使用"),
+    ("certificate_providers", "ACME 等证书提供者，服务端功能"),
+    ("http_clients", "高级 HTTP 客户端配置，SFI 不使用"),
+    ("network_namespaces", "Linux 网络命名空间，iOS 不支持"),
+    ("endpoints", "WireGuard 端点，SFI 使用出站而非端点"),
+]
 
+# SFI 入站类型（实际使用的）
+SFI_INBOUND_TYPES = [
+    ("tun", True, "TUN 虚拟网卡，iOS Network Extension 必须使用"),
+    ("socks", False, "SOCKS5 本地代理入站"),
+    ("http", False, "HTTP 本地代理入站"),
+    ("mixed", False, "SOCKS+HTTP 混合入站"),
+    ("direct", False, "直接入站"),
+]
 
-@dataclass
-class CheckResult:
-    """检查结果汇总"""
-    total_params: int = 0
-    params_in_doc_only: List[str] = field(default_factory=list)
-    params_in_core_only: List[str] = field(default_factory=list)
-    params_in_both: List[str] = field(default_factory=list)
-    params_missing_client: List[str] = field(default_factory=list)
-    type_mismatch: List[Tuple[str, str, str]] = field(default_factory=list)
-    enum_mismatch: List[Tuple[str, List[str], List[str]]] = field(default_factory=list)
-    api_mismatch: List[Tuple[str, str, str]] = field(default_factory=list)
-    registry_mismatch: List[Tuple[str, List[str], List[str]]] = field(default_factory=list)
-    errors: int = 0
-    warnings: int = 0
+# 不适用 SFI 的入站类型（服务端/Linux 特有）
+SFI_NOT_APPLICABLE_INBOUNDS = [
+    ("redirect", "Linux/macOS 透明代理，iOS 不支持"),
+    ("tproxy", "Linux 透明代理，iOS 不支持"),
+    ("shadowsocks", "服务端入站，SFI 作为客户端不使用"),
+    ("snell", "服务端入站，SFI 作为客户端不使用"),
+    ("vmess", "服务端入站，SFI 作为客户端不使用"),
+    ("trojan", "服务端入站，SFI 作为客户端不使用"),
+    ("naive", "服务端入站，SFI 作为客户端不使用"),
+    ("shadowtls", "服务端入站，SFI 作为客户端不使用"),
+    ("vless", "服务端入站，SFI 作为客户端不使用"),
+    ("anytls", "服务端入站，SFI 作为客户端不使用"),
+    ("hysteria", "服务端入站，SFI 作为客户端不使用"),
+    ("hysteria2", "服务端入站，SFI 作为客户端不使用"),
+    ("tuic", "服务端入站，SFI 作为客户端不使用"),
+    ("cloudflare", "服务端入站，SFI 作为客户端不使用"),
+]
+
+# SFI 出站类型（实际使用的）
+SFI_OUTBOUND_TYPES = [
+    ("direct", True, "直连出站"),
+    ("block", False, "阻断出站"),
+    ("selector", True, "手动选择出站组，UI 切换节点"),
+    ("urltest", False, "自动测速选择最快节点"),
+    ("shadowsocks", True, "Shadowsocks 协议出站"),
+    ("vmess", True, "VMess 协议出站"),
+    ("trojan", True, "Trojan 协议出站"),
+    ("vless", True, "VLESS 协议出站"),
+    ("socks", False, "SOCKS5 代理出站"),
+    ("http", False, "HTTP 代理出站"),
+    ("shadowtls", False, "ShadowTLS 协议出站"),
+    ("hysteria", False, "Hysteria 协议出站（QUIC）"),
+    ("hysteria2", False, "Hysteria2 协议出站（QUIC）"),
+    ("tuic", False, "TUIC 协议出站（QUIC）"),
+    ("naive", False, "NaiveProxy 协议出站"),
+    ("anytls", False, "AnyTLS 协议出站"),
+    ("snell", False, "Snell 协议出站（Surge）"),
+    ("tor", False, "Tor 出站"),
+    ("ssh", False, "SSH 隧道出站"),
+    ("bridge", False, "桥接出站"),
+]
+
+# DNS 配置参数（SFI 相关）
+SFI_DNS_PARAMS = [
+    ("servers", True, "DNS 服务器列表"),
+    ("rules", False, "DNS 规则列表"),
+    ("final", True, "最终 DNS 服务器"),
+    ("strategy", False, "DNS 解析策略（ipv4_only/ipv6_only/prefer_ipv4）"),
+    ("disable_cache", False, "禁用 DNS 缓存"),
+    ("disable_expire", False, "禁用 DNS 缓存过期"),
+    ("independent_cache", False, "独立 DNS 缓存"),
+    ("reverse_mapping", False, "反向 DNS 映射"),
+    ("fakeip", False, "FakeIP 配置"),
+]
+
+# 路由配置参数（SFI 相关）
+SFI_ROUTE_PARAMS = [
+    ("rules", False, "路由规则列表"),
+    ("rule_set", False, "路由规则集"),
+    ("final", True, "最终出站"),
+    ("auto_detect_interface", False, "自动检测出口网卡"),
+    ("auto_route", False, "自动路由（全局流量接管）"),
+    ("default_interface", False, "默认出口网卡"),
+    ("endpoint_independent_nat", False, "端点无关 NAT"),
+    ("exclude_interface", False, "排除网卡列表"),
+    ("exclude_routable", False, "排除可路由地址"),
+]
+
+# 实验配置参数（SFI 相关）
+SFI_EXPERIMENTAL_PARAMS = [
+    ("clash_api", True, "Clash 兼容 API（供第三方 GUI 使用）"),
+    ("v2ray_api", True, "V2Ray 兼容 API（流量统计）"),
+    ("cache_file", True, "缓存文件（保存节点测速/选择状态）"),
+    ("debug", False, "调试 API（pprof 性能分析）"),
+]
+
+# 服务配置参数（SFI 相关）
+SFI_SERVICE_TYPES = [
+    ("api", True, "sing-box 原生 API 服务"),
+    ("mitm", True, "MITM HTTPS 中间人攻击服务（本项目核心）"),
+    ("clashapi", False, "Clash API 服务（已废弃，用 experimental.clash_api）"),
+    ("v2ray-api", False, "V2Ray API 服务（已废弃，用 experimental.v2ray_api）"),
+]
+
+# TUN 入站参数（SFI 必须）
+SFI_TUN_PARAMS = [
+    ("type", True, "入站类型，必须为 tun"),
+    ("tag", True, "入站标签"),
+    ("interface_name", False, "虚拟网卡名称"),
+    ("mtu", False, "最大传输单元"),
+    ("gso", False, "通用分段卸载"),
+    ("address", True, "虚拟网卡 IP 地址"),
+    ("stack", True, "协议栈（gvisor/system）"),
+    ("route_address", False, "路由地址列表"),
+    ("route_exclude_address", False, "排除路由地址"),
+    ("auto_route", False, "自动路由"),
+    ("strict_route", False, "严格路由"),
+    ("endpoint_independent_nat", False, "端点无关 NAT"),
+    ("udp_timeout", False, "UDP 超时时间"),
+]
+
+# API 方法清单（SFI 客户端调用的 libbox API）
+SFI_API_METHODS = [
+    ("LibboxSetup", "初始化 libbox 服务"),
+    ("LibboxNewCommandServer", "创建命令服务器"),
+    ("LibboxNewStandaloneCommandClient", "创建独立命令客户端"),
+    ("LibboxSetXPCDialer", "设置 XPC 拨号器"),
+    ("LibboxCheckConfig", "校验配置"),
+    ("LibboxFormatConfig", "格式化配置"),
+    ("LibboxGenerateMITMCA", "生成 MITM CA 证书"),
+]
 
 
 # ========== 文档解析 ==========
-def extract_params_from_doc(doc_path: Path) -> Tuple[Set[str], Dict[str, str], Dict[str, List[str]]]:
-    """
-    从接入文档中提取所有参数名
-    返回：(参数名集合, 参数->类型映射, 参数->枚举值映射)
-    """
-    params: Set[str] = set()
-    param_types: Dict[str, str] = {}
-    param_enums: Dict[str, List[str]] = {}
 
-    if not doc_path.exists():
-        return params, param_types, param_enums
-
+def extract_doc_params(doc_path: Path) -> Dict[str, any]:
+    """从接入文档中提取参数信息"""
     content = doc_path.read_text(encoding='utf-8', errors='ignore')
 
-    # 1. 从 JSON 代码块中提取参数
-    json_blocks = re.findall(r'```json\s*\n(.*?)```', content, re.DOTALL)
-    for block in json_blocks:
-        # 提取 "key": value 形式的参数
-        matches = re.findall(r'"([a-zA-Z_][a-zA-Z0-9_]*)"\s*:', block)
-        for m in matches:
-            if len(m) > 1 and not m.startswith('_'):
-                params.add(m)
+    result = {
+        'top_level_fields': set(),
+        'inbound_types': set(),
+        'outbound_types': set(),
+        'dns_params': set(),
+        'route_params': set(),
+        'experimental_params': set(),
+        'service_types': set(),
+        'tun_params': set(),
+        'api_methods': set(),
+        'raw_content': content,
+    }
 
-    # 2. 从反引号参数引用中提取（`param_name`）
-    backtick_params = re.findall(r'`([a-z][a-z0-9_]{2,})`', content)
-    for p in backtick_params:
-        if p not in ('true', 'false', 'nil', 'null', 'ios', 'macos', 'json', 'swift', 'go', 'tcp', 'udp'):
-            params.add(p)
+    # 提取顶层字段（从表格中）
+    top_level_pattern = re.findall(r'\| `(\w+)` \|', content)
+    for field in top_level_pattern:
+        if field in [f[0] for f in SFI_TOP_LEVEL_FIELDS] or field in [f[0] for f in SFI_NOT_APPLICABLE_TOP_LEVEL]:
+            result['top_level_fields'].add(field)
 
-    # 3. 从表格中提取参数（| 参数名 | 类型 | 说明 |）
-    table_rows = re.findall(r'\|\s*`?([a-z][a-z0-9_]{2,})`?\s*\|\s*([^|]+)\|', content)
-    for name, type_str in table_rows:
-        if name not in ('参数', 'parameter', '类型', '说明'):
-            params.add(name)
-            param_types[name] = type_str.strip()
+    # 提取入站类型
+    for inbound_type, _, _ in SFI_INBOUND_TYPES + SFI_NOT_APPLICABLE_INBOUNDS:
+        if re.search(rf'`{re.escape(inbound_type)}`', content):
+            result['inbound_types'].add(inbound_type)
 
-    # 4. 提取枚举值（从文档中的枚举列表）
-    # 匹配 dns_mode 枚举
-    dns_mode_match = re.search(r'dns_mode.*?(?:枚举|可选值).*?((?:disabled|native|hijack)[\s\S]*?)(?:\n\n|##)', content, re.IGNORECASE)
-    if dns_mode_match:
-        enum_values = re.findall(r'(disabled|native|hijack)', dns_mode_match.group(1), re.IGNORECASE)
-        if enum_values:
-            param_enums['dns_mode'] = list(set(enum_values))
+    # 提取出站类型
+    for outbound_type, _, _ in SFI_OUTBOUND_TYPES:
+        if re.search(rf'`{re.escape(outbound_type)}`', content):
+            result['outbound_types'].add(outbound_type)
 
-    # 匹配 stack 枚举
-    stack_match = re.search(r'stack.*?(?:枚举|可选值).*?((?:gvisor|system|mixed)[\s\S]*?)(?:\n\n|##)', content, re.IGNORECASE)
-    if stack_match:
-        enum_values = re.findall(r'(gvisor|system|mixed)', stack_match.group(1), re.IGNORECASE)
-        if enum_values:
-            param_enums['stack'] = list(set(enum_values))
+    # 提取 DNS 参数
+    for param, _, _ in SFI_DNS_PARAMS:
+        if re.search(rf'`dns\.{re.escape(param)}`|`{re.escape(param)}`', content):
+            result['dns_params'].add(param)
 
-    # 匹配 strategy 枚举
-    strategy_match = re.search(r'strategy.*?(?:枚举|可选值).*?((?:ipv4_only|ipv6_only|prefer_ipv4|prefer_ipv6)[\s\S]*?)(?:\n\n|##)', content, re.IGNORECASE)
-    if strategy_match:
-        enum_values = re.findall(r'(ipv4_only|ipv6_only|prefer_ipv4|prefer_ipv6)', strategy_match.group(1), re.IGNORECASE)
-        if enum_values:
-            param_enums['strategy'] = list(set(enum_values))
+    # 提取路由参数
+    for param, _, _ in SFI_ROUTE_PARAMS:
+        if re.search(rf'`route\.{re.escape(param)}`|`{re.escape(param)}`', content):
+            result['route_params'].add(param)
 
-    return params, param_types, param_enums
+    # 提取实验配置参数
+    for param, _, _ in SFI_EXPERIMENTAL_PARAMS:
+        if re.search(rf'`experimental\.{re.escape(param)}`|`{re.escape(param)}`', content):
+            result['experimental_params'].add(param)
 
+    # 提取服务类型
+    for service_type, _, _ in SFI_SERVICE_TYPES:
+        if re.search(rf'`{re.escape(service_type)}`', content):
+            result['service_types'].add(service_type)
 
-def extract_apis_from_doc(doc_path: Path) -> Dict[str, str]:
-    """从文档中提取 API 方法名和签名"""
-    apis: Dict[str, str] = {}
-    if not doc_path.exists():
-        return apis
+    # 提取 TUN 参数
+    for param, _, _ in SFI_TUN_PARAMS:
+        if re.search(rf'`{re.escape(param)}`', content):
+            result['tun_params'].add(param)
 
-    content = doc_path.read_text(encoding='utf-8', errors='ignore')
+    # 提取 API 方法
+    for api_method, _ in SFI_API_METHODS:
+        if api_method in content:
+            result['api_methods'].add(api_method)
 
-    # 提取 Swift 函数签名
-    swift_funcs = re.findall(r'(?:func|public func)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)', content)
-    for name, params in swift_funcs:
-        if len(name) > 2:
-            apis[name] = f"func {name}({params})"
-
-    # 提取 Go 函数签名
-    go_funcs = re.findall(r'func\s+(?:\([^)]+\)\s+)?([A-Z][a-zA-Z0-9_]*)\s*\(([^)]*)\)', content)
-    for name, params in go_funcs:
-        if len(name) > 2:
-            apis[name] = f"func {name}({params})"
-
-    return apis
+    return result
 
 
 # ========== 内核代码解析 ==========
-def extract_params_from_core(core_path: Path) -> Tuple[Dict[str, Tuple[str, str]], Dict[str, List[str]]]:
-    """
-    从 sing-box 内核 option 包中提取所有参数定义
-    返回：(参数名->(类型, 文件路径) 映射, 参数->枚举值映射)
-    """
-    params: Dict[str, Tuple[str, str]] = {}
-    param_enums: Dict[str, List[str]] = {}
 
-    option_dir = core_path / "option"
-    if not option_dir.exists():
-        return params, param_enums
-
-    # 遍历所有 .go 文件
-    for go_file in option_dir.rglob("*.go"):
-        if go_file.name.endswith("_test.go"):
-            continue
-        try:
-            content = go_file.read_text(encoding='utf-8', errors='ignore')
-        except Exception:
-            continue
-
-        # 提取 struct 字段：`FieldName type `json:"field_name"`
-        # 先按 struct 块分割，避免匹配到 interface 定义
-        struct_blocks = re.findall(r'type\s+\w+\s+struct\s*\{([^}]*)\}', content, re.DOTALL)
-        for block in struct_blocks:
-            struct_fields = re.findall(
-                r'([A-Z][a-zA-Z0-9]*)\s+([^\s`]+(?:\s+[^\s`]+)*)\s*`[^`]*json:"([a-z][a-zA-Z0-9_]*)"',
-                block
-            )
-            for field_name, field_type, json_name in struct_fields:
-                if json_name and json_name != "-":
-                    # 清理类型
-                    clean_type = field_type.strip()
-                    # 移除指针符号
-                    clean_type = clean_type.lstrip('*')
-                    # 只取基础类型（第一个词）
-                    clean_type = clean_type.split()[0].split('[')[0].split('{')[0].strip()
-                    # 排除明显不是类型的内容
-                    if clean_type and not clean_type.startswith('//') and len(clean_type) < 50:
-                        params[json_name] = (clean_type, str(go_file.relative_to(core_path)))
-
-        # 提取枚举类型定义（type X string / type X int）
-        enum_types = re.findall(r'type\s+([A-Z][a-zA-Z0-9]*)\s+(?:string|int|uint8|uint16|uint32)', content)
-        for enum_type in enum_types:
-            # 查找该枚举的常量值
-            enum_pattern = re.compile(
-                rf'{enum_type}\s+(?:[A-Z][a-zA-Z0-9]*)\s*=\s*"([^"]+)"|'
-                rf'([A-Z][a-zA-Z0-9]*)\s+{enum_type}\s*=\s*"([^"]+)"'
-            )
-            values = []
-            for match in enum_pattern.finditer(content):
-                val = match.group(1) or match.group(3)
-                if val:
-                    values.append(val)
-            if values:
-                # 尝试映射到参数名
-                param_name = re.sub(r'([a-z])([A-Z])', r'\1_\2', enum_type).lower()
-                param_enums[param_name] = list(set(values))
-
-    return params, param_enums
-
-
-def extract_registry_from_core(core_path: Path) -> Dict[str, List[str]]:
-    """从内核 include 目录中提取所有注册的类型（包括条件注册）"""
-    registry: Dict[str, List[str]] = {
-        'inbounds': [],
-        'outbounds': [],
-        'endpoints': [],
-        'dns_transports': [],
-        'services': [],
-        'certificate_providers': [],
+def extract_core_registry(core_path: Path) -> Dict[str, Set[str]]:
+    """从内核注册表中提取支持的类型"""
+    registry = {
+        'inbounds': set(),
+        'outbounds': set(),
+        'services': set(),
     }
 
     include_dir = core_path / "include"
     if not include_dir.exists():
         return registry
 
-    # 扫描 include 目录下所有 .go 文件，提取所有注册调用
     all_content = ""
     for go_file in include_dir.rglob("*.go"):
         if go_file.name.endswith("_test.go"):
@@ -241,595 +263,612 @@ def extract_registry_from_core(core_path: Path) -> Dict[str, List[str]]:
         except Exception:
             continue
 
-    # 提取入站注册（包括 RegisterInbound、RegisterRedirect、RegisterTProxy）
+    # 入站注册
     inbound_matches = re.findall(r'(\w+)\.Register(?:Inbound|Redirect|TProxy)\(registry\)', all_content)
-    inbound_types = set()
     for m in inbound_matches:
         name = m.lower()
-        # cloudflared 包注册的类型名是 cloudflare
         if name == 'cloudflared':
             name = 'cloudflare'
-        inbound_types.add(name)
-    registry['inbounds'] = sorted(inbound_types)
+        registry['inbounds'].add(name)
 
-    # 提取出站注册（包括 RegisterOutbound、RegisterSelector、RegisterURLTest）
-    # 注意：group.RegisterSelector 的类型名是 selector，不是 group
+    # 出站注册
     outbound_outbound = re.findall(r'(\w+)\.RegisterOutbound\(registry\)', all_content)
     outbound_selector = re.findall(r'\w+\.RegisterSelector\(registry\)', all_content)
     outbound_urltest = re.findall(r'\w+\.RegisterURLTest\(registry\)', all_content)
-    outbound_types = set(m.lower() for m in outbound_outbound)
+    for m in outbound_outbound:
+        registry['outbounds'].add(m.lower())
     if outbound_selector:
-        outbound_types.add('selector')
+        registry['outbounds'].add('selector')
     if outbound_urltest:
-        outbound_types.add('urltest')
-    registry['outbounds'] = sorted(outbound_types)
+        registry['outbounds'].add('urltest')
 
-    # 提取端点注册
-    endpoint_matches = re.findall(r'(\w+)\.RegisterEndpoint\(registry\)|register(\w+)Endpoint\(registry\)', all_content)
-    for m in endpoint_matches:
-        name = (m[0] or m[1]).lower()
-        if name and name not in registry['endpoints']:
-            registry['endpoints'].append(name)
-
-    # 提取 DNS 传输注册
-    dns_matches = re.findall(r'(\w+)\.Register(?:Transport|HTTP3Transport)\(registry\)|register(\w+)(?:DNS)?Transport\(registry\)', all_content)
-    for m in dns_matches:
-        name = (m[0] or m[1]).lower()
-        if name and name not in registry['dns_transports']:
-            registry['dns_transports'].append(name)
-
-    # 提取服务注册
+    # 服务注册
     service_matches = re.findall(r'(\w+)\.RegisterService\(registry\)|register(\w+)(?:Service|RealmService)\(registry\)', all_content)
     for m in service_matches:
         name = (m[0] or m[1]).lower()
-        if name and name not in registry['services']:
-            registry['services'].append(name)
+        if name:
+            registry['services'].add(name)
 
     return registry
 
 
-def extract_apis_from_core(core_path: Path) -> Dict[str, str]:
-    """从内核 libbox 包中提取 API 方法"""
-    apis: Dict[str, str] = {}
+def extract_core_params(core_path: Path) -> Dict[str, Set[str]]:
+    """从内核 option 包中提取参数定义"""
+    params = {
+        'dns': set(),
+        'route': set(),
+        'experimental': set(),
+        'tun': set(),
+        'top_level': set(),
+    }
 
-    libbox_dir = core_path / "experimental" / "libbox"
-    if not libbox_dir.exists():
-        return apis
+    option_dir = core_path / "option"
+    if not option_dir.exists():
+        return params
 
-    for go_file in libbox_dir.rglob("*.go"):
-        if go_file.name.endswith("_test.go"):
-            continue
-        try:
-            content = go_file.read_text(encoding='utf-8', errors='ignore')
-        except Exception:
-            continue
+    # 顶层字段（Options 结构体）
+    options_file = option_dir / "options.go"
+    if options_file.exists():
+        content = options_file.read_text(encoding='utf-8', errors='ignore')
+        struct_blocks = re.findall(r'type\s+Options\s+struct\s*\{([^}]*)\}', content, re.DOTALL)
+        for block in struct_blocks:
+            fields = re.findall(r'`[^`]*json:"([a-z][a-zA-Z0-9_]*)"', block)
+            for field in fields:
+                if field and field != "-":
+                    params['top_level'].add(field)
 
-        # 提取导出方法
-        methods = re.findall(r'func\s+\([^)]+\)\s+([A-Z][a-zA-Z0-9_]*)\s*\(([^)]*)\)', content)
-        for name, params in methods:
-            if len(name) > 2:
-                apis[name] = f"func ({name})"
+    # DNS 参数
+    dns_file = option_dir / "dns.go"
+    if dns_file.exists():
+        content = dns_file.read_text(encoding='utf-8', errors='ignore')
+        struct_blocks = re.findall(r'type\s+\w*DNS\w*\s+struct\s*\{([^}]*)\}', content, re.DOTALL)
+        for block in struct_blocks:
+            fields = re.findall(r'`[^`]*json:"([a-z][a-zA-Z0-9_]*)"', block)
+            for field in fields:
+                if field and field != "-":
+                    params['dns'].add(field)
 
-        # 提取导出函数
-        funcs = re.findall(r'^func\s+([A-Z][a-zA-Z0-9_]*)\s*\(([^)]*)\)', content, re.MULTILINE)
-        for name, params in funcs:
-            if len(name) > 2:
-                apis[name] = f"func {name}({params})"
+    # 路由参数
+    route_file = option_dir / "route.go"
+    if route_file.exists():
+        content = route_file.read_text(encoding='utf-8', errors='ignore')
+        struct_blocks = re.findall(r'type\s+\w*Route\w*\s+struct\s*\{([^}]*)\}', content, re.DOTALL)
+        for block in struct_blocks:
+            fields = re.findall(r'`[^`]*json:"([a-z][a-zA-Z0-9_]*)"', block)
+            for field in fields:
+                if field and field != "-":
+                    params['route'].add(field)
 
-    return apis
+    # 实验配置参数
+    for exp_file in ["experimental.go", "clash_api.go", "v2ray_api.go", "cache_file.go"]:
+        file_path = option_dir / exp_file
+        if file_path.exists():
+            content = file_path.read_text(encoding='utf-8', errors='ignore')
+            fields = re.findall(r'`[^`]*json:"([a-z][a-zA-Z0-9_]*)"', content)
+            for field in fields:
+                if field and field != "-":
+                    params['experimental'].add(field)
+
+    # TUN 参数
+    tun_file = option_dir / "inbound_tun.go"
+    if tun_file.exists():
+        content = tun_file.read_text(encoding='utf-8', errors='ignore')
+        struct_blocks = re.findall(r'type\s+\w*TUN\w*\s+struct\s*\{([^}]*)\}', content, re.DOTALL)
+        for block in struct_blocks:
+            fields = re.findall(r'`[^`]*json:"([a-z][a-zA-Z0-9_]*)"', block)
+            for field in fields:
+                if field and field != "-":
+                    params['tun'].add(field)
+
+    return params
 
 
 # ========== 客户端代码解析 ==========
-def search_params_in_client(client_path: Path, params: Set[str]) -> Dict[str, bool]:
-    """检查参数是否在客户端代码中被引用"""
-    result: Dict[str, bool] = {}
 
-    # 搜索 Swift 代码
+def extract_client_usage(client_path: Path) -> Dict[str, Set[str]]:
+    """从客户端 Swift 代码中提取参数使用情况"""
+    usage = {
+        'top_level': set(),
+        'inbound_types': set(),
+        'outbound_types': set(),
+        'dns_params': set(),
+        'route_params': set(),
+        'experimental_params': set(),
+        'service_types': set(),
+        'api_methods': set(),
+    }
+
     swift_files = list(client_path.rglob("*.swift"))
     all_content = ""
-    for f in swift_files:
-        if "Frameworks" in str(f) or ".build" in str(f):
+    for swift_file in swift_files:
+        if ".build" in str(swift_file) or "Frameworks" in str(swift_file):
             continue
         try:
-            all_content += f.read_text(encoding='utf-8', errors='ignore') + "\n"
+            all_content += swift_file.read_text(encoding='utf-8', errors='ignore') + "\n"
         except Exception:
             continue
 
-    for param in params:
-        # 搜索参数名（作为字符串或变量名）
-        pattern = rf'["\']{re.escape(param)}["\']|{re.escape(param)}'
-        if re.search(pattern, all_content):
-            result[param] = True
+    # 顶层字段
+    for field, _, _ in SFI_TOP_LEVEL_FIELDS:
+        if f'"{field}"' in all_content or f'`{field}`' in all_content:
+            usage['top_level'].add(field)
+
+    # 入站类型
+    for inbound_type, _, _ in SFI_INBOUND_TYPES:
+        if f'"{inbound_type}"' in all_content:
+            usage['inbound_types'].add(inbound_type)
+
+    # 出站类型
+    for outbound_type, _, _ in SFI_OUTBOUND_TYPES:
+        if f'"{outbound_type}"' in all_content:
+            usage['outbound_types'].add(outbound_type)
+
+    # API 方法
+    for api_method, _ in SFI_API_METHODS:
+        if api_method in all_content:
+            usage['api_methods'].add(api_method)
+
+    return usage
+
+
+# ========== 检查逻辑 ==========
+
+def run_checks(doc_path: Path, core_path: Path, client_path: Path) -> Tuple[Dict, List[str], List[str]]:
+    """运行所有检查，返回 (结果字典, 错误列表, 警告列表)"""
+    errors = []
+    warnings = []
+    results = {
+        'top_level': {'required': [], 'optional': [], 'not_applicable': [], 'missing_required': []},
+        'inbounds': {'sfi_used': [], 'not_applicable': [], 'missing_required': []},
+        'outbounds': {'sfi_used': [], 'missing_required': []},
+        'dns': {'documented': [], 'missing_required': []},
+        'route': {'documented': [], 'missing_required': []},
+        'experimental': {'documented': [], 'missing_required': []},
+        'services': {'documented': [], 'missing_required': []},
+        'tun': {'documented': [], 'missing_required': []},
+        'api': {'documented': [], 'missing_required': []},
+        'client_usage': {},
+    }
+
+    # 解析文档
+    doc = extract_doc_params(doc_path)
+
+    # 解析内核
+    core_registry = extract_core_registry(core_path)
+    core_params = extract_core_params(core_path)
+
+    # 解析客户端
+    client_usage = extract_client_usage(client_path)
+
+    # ===== 1. 顶层字段检查 =====
+    for field, required, desc in SFI_TOP_LEVEL_FIELDS:
+        in_doc = field in doc['top_level_fields']
+        in_core = field in core_params['top_level']
+        in_client = field in client_usage['top_level']
+
+        item = {
+            'field': field,
+            'required': required,
+            'description': desc,
+            'in_doc': in_doc,
+            'in_core': in_core,
+            'in_client': in_client,
+        }
+
+        if required:
+            results['top_level']['required'].append(item)
+            if not in_doc:
+                errors.append(f"[顶层字段] 必须字段 `{field}` 未在文档中说明")
+                results['top_level']['missing_required'].append(field)
+            if not in_core:
+                warnings.append(f"[顶层字段] 必须字段 `{field}` 未在内核 option 中找到定义")
         else:
-            result[param] = False
+            results['top_level']['optional'].append(item)
+            if not in_doc:
+                warnings.append(f"[顶层字段] 可选字段 `{field}` 未在文档中说明")
 
-    return result
+    # 不适用的顶层字段（文档中不应作为 SFI 推荐配置）
+    for field, reason in SFI_NOT_APPLICABLE_TOP_LEVEL:
+        in_doc = field in doc['top_level_fields']
+        results['top_level']['not_applicable'].append({
+            'field': field,
+            'reason': reason,
+            'in_doc': in_doc,
+        })
+        if in_doc:
+            warnings.append(f"[顶层字段] 文档包含不适用 SFI 的字段 `{field}`（{reason}）")
 
+    # ===== 2. 入站类型检查 =====
+    for inbound_type, required, desc in SFI_INBOUND_TYPES:
+        in_doc = inbound_type in doc['inbound_types']
+        in_core = inbound_type in core_registry['inbounds']
+        in_client = inbound_type in client_usage['inbound_types']
 
-# ========== 主检查逻辑 ==========
-def run_checks(doc_path: Path, core_path: Path, client_path: Path) -> CheckResult:
-    """运行所有检查"""
-    result = CheckResult()
+        item = {
+            'type': inbound_type,
+            'required': required,
+            'description': desc,
+            'in_doc': in_doc,
+            'in_core': in_core,
+            'in_client': in_client,
+        }
 
-    print("【1/7】解析接入文档参数...")
-    doc_params, doc_types, doc_enums = extract_params_from_doc(doc_path)
-    print(f"  文档中提取到 {len(doc_params)} 个参数")
+        results['inbounds']['sfi_used'].append(item)
 
-    print("【2/7】解析内核代码参数定义...")
-    core_params, core_enums = extract_params_from_core(core_path)
-    print(f"  内核中定义了 {len(core_params)} 个参数")
+        if required:
+            if not in_doc:
+                errors.append(f"[入站类型] 必须类型 `{inbound_type}` 未在文档中说明")
+                results['inbounds']['missing_required'].append(inbound_type)
+            if not in_core:
+                errors.append(f"[入站类型] 必须类型 `{inbound_type}` 未在内核注册表中注册")
 
-    print("【3/7】参数存在性交叉检查...")
-    doc_param_set = set(doc_params)
-    core_param_set = set(core_params.keys())
+    # 不适用的入站类型
+    for inbound_type, reason in SFI_NOT_APPLICABLE_INBOUNDS:
+        in_doc = inbound_type in doc['inbound_types']
+        results['inbounds']['not_applicable'].append({
+            'type': inbound_type,
+            'reason': reason,
+            'in_doc': in_doc,
+        })
 
-    result.params_in_doc_only = sorted(doc_param_set - core_param_set)
-    result.params_in_core_only = sorted(core_param_set - doc_param_set)
-    result.params_in_both = sorted(doc_param_set & core_param_set)
-    result.total_params = len(doc_param_set | core_param_set)
+    # ===== 3. 出站类型检查 =====
+    for outbound_type, required, desc in SFI_OUTBOUND_TYPES:
+        in_doc = outbound_type in doc['outbound_types']
+        in_core = outbound_type in core_registry['outbounds']
+        in_client = outbound_type in client_usage['outbound_types']
 
-    print(f"  文档独有: {len(result.params_in_doc_only)}")
-    print(f"  内核独有: {len(result.params_in_core_only)}")
-    print(f"  两者都有: {len(result.params_in_both)}")
+        item = {
+            'type': outbound_type,
+            'required': required,
+            'description': desc,
+            'in_doc': in_doc,
+            'in_core': in_core,
+            'in_client': in_client,
+        }
 
-    # 文档独有参数（可能是文档错误或内核未实现）
-    if result.params_in_doc_only:
-        # 过滤掉常见的非参数词
-        common_words = {'true', 'false', 'nil', 'null', 'ios', 'macos', 'json', 'swift', 'go',
-                        'tcp', 'udp', 'tls', 'http', 'https', 'dns', 'api', 'app', 'ext',
-                        'log', 'tag', 'type', 'name', 'port', 'path', 'url', 'host', 'user',
-                        'pass', 'key', 'cert', 'ca', 'id', 'uid', 'pid', 'ppid', 'sid',
-                        'box', 'core', 'lib', 'libbox', 'sfi', 'mitm', 'tun', 'vpn',
-                        'end', 'start', 'stop', 'init', 'run', 'exit', 'open', 'close',
-                        'read', 'write', 'send', 'recv', 'bind', 'listen', 'accept',
-                        'connect', 'dial', 'resolve', 'lookup', 'parse', 'format',
-                        'string', 'array', 'object', 'number', 'boolean', 'integer',
-                        'float', 'double', 'byte', 'char', 'rune', 'error', 'warning',
-                        'info', 'debug', 'trace', 'fatal', 'panic', 'recover',
-                        'func', 'var', 'let', 'const', 'struct', 'class', 'enum',
-                        'protocol', 'extension', 'import', 'export', 'package',
-                        'public', 'private', 'internal', 'fileprivate', 'open',
-                        'static', 'final', 'override', 'required', 'convenience',
-                        'weak', 'strong', 'unowned', 'lazy', 'didset', 'willset',
-                        'get', 'set', 'willset', 'didset', 'subscript', 'operator',
-                        'infix', 'prefix', 'postfix', 'associativity', 'precedence',
-                        'async', 'await', 'throws', 'rethrows', 'try', 'catch',
-                        'defer', 'guard', 'if', 'else', 'switch', 'case', 'default',
-                        'for', 'while', 'repeat', 'break', 'continue', 'fallthrough',
-                        'return', 'in', 'out', 'where', 'select', 'from', 'group',
-                        'order', 'limit', 'offset', 'join', 'inner', 'outer', 'left',
-                        'right', 'cross', 'union', 'intersect', 'except', 'minus',
-                        'create', 'drop', 'alter', 'add', 'remove', 'rename', 'modify',
-                        'insert', 'update', 'delete', 'truncate', 'grant', 'revoke',
-                        'begin', 'commit', 'rollback', 'savepoint', 'transaction',
-                        'lock', 'unlock', 'flush', 'reset', 'clear', 'purge', 'clean',
-                        'setup', 'config', 'configure', 'setting', 'settings', 'option',
-                        'options', 'parameter', 'parameters', 'argument', 'arguments',
-                        'value', 'values', 'result', 'results', 'output', 'input',
-                        'source', 'target', 'destination', 'origin', 'server', 'client',
-                        'request', 'response', 'message', 'packet', 'frame', 'stream',
-                        'session', 'connection', 'channel', 'socket', 'pipe', 'queue',
-                        'stack', 'heap', 'tree', 'graph', 'list', 'map', 'set',
-                        'array', 'slice', 'dictionary', 'tuple', 'pair', 'triple',
-                        'single', 'double', 'triple', 'quad', 'penta', 'hexa',
-                        'first', 'second', 'third', 'last', 'next', 'previous',
-                        'current', 'previous', 'old', 'new', 'original', 'copy',
-                        'clone', 'duplicate', 'reference', 'pointer', 'handle',
-                        'context', 'environment', 'scope', 'namespace', 'module',
-                        'component', 'module', 'plugin', 'addon', 'extension',
-                        'feature', 'function', 'method', 'property', 'attribute',
-                        'field', 'member', 'element', 'item', 'entry', 'record',
-                        'row', 'column', 'cell', 'table', 'view', 'index', 'key',
-                        'primary', 'foreign', 'unique', 'check', 'constraint',
-                        'trigger', 'procedure', 'function', 'view', 'schema',
-                        'database', 'table', 'index', 'sequence', 'synonym',
-                        'grant', 'revoke', 'role', 'user', 'password', 'permission',
-                        'privilege', 'audit', 'log', 'trace', 'monitor', 'profile',
-                        'metric', 'stat', 'stats', 'counter', 'gauge', 'histogram',
-                        'summary', 'label', 'tag', 'annotation', 'comment', 'note',
-                        'todo', 'fixme', 'hack', 'workaround', 'deprecated', 'obsolete',
-                        'experimental', 'beta', 'alpha', 'stable', 'release', 'snapshot',
-                        'nightly', 'ci', 'cd', 'build', 'test', 'lint', 'format',
-                        'check', 'verify', 'validate', 'assert', 'expect', 'should',
-                        'given', 'when', 'then', 'describe', 'context', 'it', 'test',
-                        'spec', 'suite', 'case', 'scenario', 'step', 'fixture',
-                        'mock', 'stub', 'fake', 'spy', 'dummy', 'double',
-                        'integration', 'e2e', 'unit', 'system', 'acceptance',
-                        'performance', 'load', 'stress', 'soak', 'smoke', 'sanity',
-                        'regression', 'compatibility', 'interoperability', 'conformance',
-                        'security', 'privacy', 'compliance', 'legal', 'license',
-                        'copyright', 'trademark', 'patent', 'author', 'contributor',
-                        'maintainer', 'owner', 'reviewer', 'approver', 'reporter',
-                        'assignee', 'reporter', 'watcher', 'follower', 'member',
-                        'admin', 'moderator', 'guest', 'visitor', 'anonymous',
-                        'authenticated', 'authorized', 'verified', 'trusted', 'safe',
-                        'secure', 'encrypted', 'signed', 'certified', 'valid',
-                        'invalid', 'expired', 'revoked', 'suspended', 'banned',
-                        'blocked', 'restricted', 'limited', 'quota', 'rate', 'limit',
-                        'threshold', 'maximum', 'minimum', 'default', 'custom',
-                        'standard', 'normal', 'regular', 'common', 'general', 'universal',
-                        'global', 'local', 'regional', 'national', 'international',
-                        'public', 'private', 'protected', 'internal', 'external',
-                        'shared', 'exclusive', 'dedicated', 'isolated', 'separate',
-                        'combined', 'merged', 'integrated', 'embedded', 'bundled',
-                        'standalone', 'independent', 'autonomous', 'automatic', 'manual',
-                        'synchronous', 'asynchronous', 'parallel', 'concurrent', 'sequential',
-                        'serial', 'batch', 'stream', 'pipeline', 'workflow', 'process',
-                        'thread', 'coroutine', 'fiber', 'goroutine', 'actor', 'agent',
-                        'service', 'daemon', 'worker', 'job', 'task', 'schedule',
-                        'timer', 'clock', 'date', 'time', 'duration', 'interval',
-                        'period', 'cycle', 'phase', 'stage', 'step', 'level',
-                        'layer', 'tier', 'rank', 'grade', 'class', 'category',
-                        'type', 'kind', 'sort', 'variety', 'flavor', 'style',
-                        'mode', 'state', 'status', 'condition', 'situation', 'scenario',
-                        'context', 'background', 'foreground', 'environment', 'atmosphere',
-                        'space', 'area', 'region', 'zone', 'district', 'sector',
-                        'field', 'domain', 'realm', 'kingdom', 'empire', 'republic',
-                        'nation', 'country', 'state', 'province', 'city', 'town',
-                        'village', 'street', 'road', 'avenue', 'boulevard', 'lane',
-                        'drive', 'court', 'place', 'square', 'plaza', 'park',
-                        'garden', 'yard', 'field', 'farm', 'ranch', 'estate',
-                        'property', 'building', 'house', 'apartment', 'condo', 'flat',
-                        'room', 'hall', 'lobby', 'corridor', 'stairs', 'elevator',
-                        'door', 'window', 'wall', 'floor', 'ceiling', 'roof',
-                        'foundation', 'basement', 'attic', 'garage', 'parking', 'lot',
-                        'car', 'vehicle', 'truck', 'bus', 'train', 'plane',
-                        'boat', 'ship', 'bicycle', 'motorcycle', 'scooter', 'skateboard',
-                        'wheel', 'tire', 'engine', 'motor', 'battery', 'fuel',
-                        'gas', 'oil', 'water', 'air', 'fire', 'earth',
-                        'metal', 'wood', 'glass', 'plastic', 'rubber', 'fabric',
-                        'paper', 'cardboard', 'stone', 'brick', 'concrete', 'cement',
-                        'sand', 'gravel', 'dirt', 'mud', 'clay', 'soil',
-                        'plant', 'tree', 'flower', 'grass', 'leaf', 'root',
-                        'animal', 'dog', 'cat', 'bird', 'fish', 'horse',
-                        'cow', 'pig', 'sheep', 'goat', 'chicken', 'duck',
-                        'human', 'person', 'man', 'woman', 'child', 'baby',
-                        'boy', 'girl', 'teen', 'adult', 'senior', 'elder',
-                        'family', 'friend', 'enemy', 'stranger', 'neighbor', 'colleague',
-                        'boss', 'employee', 'manager', 'director', 'ceo', 'cto',
-                        'cfo', 'coo', 'vp', 'president', 'chairman', 'founder',
-                        'creator', 'author', 'writer', 'reader', 'viewer', 'listener',
-                        'speaker', 'singer', 'dancer', 'actor', 'actress', 'artist',
-                        'painter', 'sculptor', 'musician', 'composer', 'conductor', 'player',
-                        'coach', 'teacher', 'student', 'pupil', 'scholar', 'professor',
-                        'doctor', 'nurse', 'patient', 'lawyer', 'judge', 'police',
-                        'firefighter', 'soldier', 'sailor', 'pilot', 'driver', 'cook',
-                        'chef', 'waiter', 'bartender', 'cashier', 'clerk', 'secretary',
-                        'assistant', 'receptionist', 'janitor', 'cleaner', 'guard', 'security',
-                        'farmer', 'fisherman', 'hunter', 'miner', 'builder', 'carpenter',
-                        'plumber', 'electrician', 'mechanic', 'engineer', 'scientist', 'researcher',
-                        'developer', 'programmer', 'coder', 'designer', 'architect', 'analyst',
-                        'consultant', 'advisor', 'expert', 'specialist', 'professional', 'amateur',
-                        'beginner', 'novice', 'intermediate', 'advanced', 'expert', 'master',
-                        'guru', 'ninja', 'rockstar', 'wizard', 'genius', 'prodigy',
-                        'idiot', 'fool', 'moron', 'stupid', 'dumb', 'smart',
-                        'intelligent', 'clever', 'wise', 'brilliant', 'talented', 'gifted',
-                        'lucky', 'unfortunate', 'fortunate', 'happy', 'sad', 'angry',
-                        'excited', 'bored', 'tired', 'energetic', 'lazy', 'hardworking',
-                        'rich', 'poor', 'wealthy', 'broke', 'successful', 'failed',
-                        'famous', 'unknown', 'popular', 'unpopular', 'loved', 'hated',
-                        'beautiful', 'ugly', 'handsome', 'pretty', 'cute', 'ugly',
-                        'tall', 'short', 'fat', 'thin', 'slim', 'overweight',
-                        'young', 'old', 'new', 'ancient', 'modern', 'traditional',
-                        'big', 'small', 'large', 'tiny', 'huge', 'giant',
-                        'long', 'short', 'wide', 'narrow', 'thick', 'thin',
-                        'deep', 'shallow', 'high', 'low', 'fast', 'slow',
-                        'quick', 'rapid', 'swift', 'hasty', 'hurried', 'rushed',
-                        'gradual', 'steady', 'stable', 'unstable', 'constant', 'variable',
-                        'fixed', 'flexible', 'rigid', 'loose', 'tight', 'firm',
-                        'hard', 'soft', 'rough', 'smooth', 'sharp', 'dull',
-                        'bright', 'dark', 'light', 'heavy', 'warm', 'cold',
-                        'hot', 'cool', 'wet', 'dry', 'clean', 'dirty',
-                        'fresh', 'stale', 'sweet', 'sour', 'bitter', 'salty',
-                        'spicy', 'bland', 'delicious', 'tasty', 'yummy', 'disgusting',
-                        'beautiful', 'gorgeous', 'stunning', 'magnificent', 'wonderful', 'amazing',
-                        'awesome', 'incredible', 'unbelievable', 'remarkable', 'outstanding', 'excellent',
-                        'great', 'good', 'nice', 'fine', 'okay', 'alright',
-                        'bad', 'terrible', 'horrible', 'awful', 'dreadful', 'appalling',
-                        'perfect', 'flawless', 'impeccable', 'spotless', 'immaculate', 'pristine',
-                        'imperfect', 'flawed', 'defective', 'broken', 'damaged', 'ruined',
-                        'whole', 'complete', 'finished', 'done', 'partial', 'incomplete',
-                        'unfinished', 'ongoing', 'in progress', 'pending', 'waiting', 'queued',
-                        'scheduled', 'planned', 'organized', 'arranged', 'prepared', 'ready',
-                        'unprepared', 'unready', 'unwilling', 'reluctant', 'hesitant', 'eager',
-                        'keen', 'enthusiastic', 'passionate', 'indifferent', 'apathetic', 'caring',
-                        'loving', 'kind', 'nice', 'friendly', 'unfriendly', 'hostile',
-                        'aggressive', 'passive', 'active', 'inactive', 'lazy', 'energetic',
-                        'dynamic', 'static', 'fluid', 'solid', 'liquid', 'gas',
-                        'plasma', 'energy', 'matter', 'mass', 'weight', 'volume',
-                        'density', 'pressure', 'temperature', 'humidity', 'viscosity', 'elasticity',
-                        'conductivity', 'resistance', 'capacitance', 'inductance', 'voltage', 'current',
-                        'power', 'energy', 'work', 'force', 'momentum', 'velocity',
-                        'acceleration', 'speed', 'distance', 'displacement', 'direction', 'angle',
-                        'area', 'perimeter', 'circumference', 'diameter', 'radius', 'center',
-                        'edge', 'corner', 'side', 'face', 'surface', 'point',
-                        'line', 'curve', 'arc', 'circle', 'ellipse', 'triangle',
-                        'square', 'rectangle', 'parallelogram', 'trapezoid', 'rhombus', 'polygon',
-                        'pentagon', 'hexagon', 'heptagon', 'octagon', 'nonagon', 'decagon',
-                        'sphere', 'cube', 'cylinder', 'cone', 'pyramid', 'prism',
-                        'torus', 'ellipsoid', 'paraboloid', 'hyperboloid', 'polyhedron', 'tetrahedron',
-                        'octahedron', 'dodecahedron', 'icosahedron', 'dimension', 'coordinate', 'axis',
-                        'x', 'y', 'z', 'origin', 'vector', 'scalar',
-                        'matrix', 'tensor', 'determinant', 'eigenvalue', 'eigenvector', 'derivative',
-                        'integral', 'limit', 'series', 'sequence', 'function', 'equation',
-                        'inequality', 'formula', 'algorithm', 'theorem', 'lemma', 'corollary',
-                        'proof', 'hypothesis', 'theory', 'law', 'principle', 'rule',
-                        'axiom', 'postulate', 'definition', 'property', 'characteristic', 'attribute',
-                        'feature', 'quality', 'trait', 'aspect', 'facet', 'side',
-                        'perspective', 'viewpoint', 'standpoint', 'position', 'stance', 'opinion',
-                        'view', 'belief', 'conviction', 'faith', 'trust', 'doubt',
-                        'skepticism', 'cynicism', 'optimism', 'pessimism', 'realism', 'idealism',
-                        'pragmatism', 'empiricism', 'rationalism', 'logical', 'illogical', 'rational',
-                        'irrational', 'reasonable', 'unreasonable', 'sensible', 'senseless', 'wise',
-                        'foolish', 'smart', 'stupid', 'intelligent', 'dumb', 'clever',
-                        'bright', 'brilliant', 'gifted', 'talented', 'genius', 'idiot',
-                        'moron', 'fool', 'silly', 'crazy', 'insane', 'mad',
-                        'psychotic', 'neurotic', 'hysterical', 'paranoid', 'schizophrenic', 'bipolar',
-                        'depressed', 'anxious', 'stressed', 'burned out', 'exhausted', 'tired',
-                        'fatigued', 'weary', 'sleepy', 'drowsy', 'awake', 'alert',
-                        'conscious', 'unconscious', 'aware', 'unaware', 'mindful', 'forgetful',
-                        'remember', 'forget', 'recall', 'recognize', 'identify', 'distinguish',
-                        'differentiate', 'discriminate', 'separate', 'divide', 'split', 'join',
-                        'combine', 'merge', 'unite', 'integrate', 'assimilate', 'incorporate',
-                        'include', 'exclude', 'contain', 'hold', 'carry', 'bring',
-                        'take', 'fetch', 'grab', 'catch', 'release', 'drop',
-                        'throw', 'toss', 'flip', 'spin', 'rotate', 'turn',
-                        'twist', 'bend', 'curve', 'straighten', 'flatten', 'crumple',
-                        'crush', 'smash', 'break', 'shatter', 'crack', 'split',
-                        'tear', 'rip', 'cut', 'slice', 'chop', 'dice',
-                        'mince', 'grate', 'shred', 'peel', 'core', 'pit',
-                        'seed', 'stem', 'leaf', 'root', 'flower', 'fruit',
-                        'vegetable', 'meat', 'fish', 'poultry', 'seafood', 'dairy',
-                        'grain', 'cereal', 'bread', 'pasta', 'rice', 'noodle',
-                        'soup', 'stew', 'curry', 'sauce', 'dressing', 'gravy',
-                        'spice', 'herb', 'seasoning', 'flavor', 'taste', 'smell',
-                        'aroma', 'fragrance', 'perfume', 'scent', 'odor', 'stink',
-                        'stench', 'reek', 'fragrant', 'aromatic', 'smelly', 'stinky',
-                        'odorous', 'malodorous', 'fragrance', 'perfume', 'cologne', 'toilette',
-                        'eau', 'deodorant', 'antiperspirant', 'shampoo', 'conditioner', 'soap',
-                        'detergent', 'cleanser', 'moisturizer', 'lotion', 'cream', 'gel',
-                        'serum', 'essence', 'toner', 'astringent', 'exfoliant', 'scrub',
-                        'mask', 'peel', 'pack', 'patch', 'pad', 'wipe',
-                        'tissue', 'towel', 'napkin', 'cloth', 'rag', 'sponge',
-                        'brush', 'comb', 'mirror', 'razor', 'shaver', 'trimmer',
-                        'clipper', 'scissors', 'nail', 'file', 'buffer', 'polisher',
-                        'pumice', 'stone', 'loofah', 'sponge', 'brush', 'bottle',
-                        'jar', 'container', 'tube', 'spray', 'pump', 'dropper',
-                        'applicator', 'spatula', 'brush', 'roller', 'pad', 'sponge',
-                        'cotton', 'swab', 'ball', 'pad', 'round', 'square',
-                        'triangle', 'oval', 'circle', 'heart', 'star', 'moon',
-                        'sun', 'cloud', 'rain', 'snow', 'wind', 'storm',
-                        'thunder', 'lightning', 'rainbow', 'fog', 'mist', 'haze',
-                        'smog', 'smoke', 'ash', 'dust', 'dirt', 'mud',
-                        'sand', 'soil', 'clay', 'silt', 'gravel', 'rock',
-                        'stone', 'pebble', 'boulder', 'mountain', 'hill', 'valley',
-                        'canyon', 'gorge', 'cliff', 'cave', 'cavern', 'grotto',
-                        'river', 'stream', 'creek', 'brook', 'lake', 'pond',
-                        'pool', 'ocean', 'sea', 'bay', 'gulf', 'strait',
-                        'channel', 'canal', 'waterfall', 'rapids', 'whirlpool', 'tide',
-                        'wave', 'surf', 'spray', 'foam', 'bubble', 'drop',
-                        'drip', 'splash', 'ripple', 'current', 'flow', 'flood',
-                        'tsunami', 'hurricane', 'typhoon', 'cyclone', 'tornado', 'twister',
-                        'earthquake', 'tremor', 'volcano', 'eruption', 'lava', 'magma',
-                        'geyser', 'hot spring', 'fumarole', 'mud pot', 'solfatara', 'caldera',
-                        'crater', 'dome', 'cone', 'shield', 'stratovolcano', 'cinder',
-                        'scoria', 'pumice', 'obsidian', 'basalt', 'granite', 'gneiss',
-                        'schist', 'slate', 'marble', 'quartz', 'feldspar', 'mica',
-                        'hornblende', 'augite', 'olivine', 'garnet', 'topaz', 'emerald',
-                        'ruby', 'sapphire', 'diamond', 'amethyst', 'citrine', 'jade',
-                        'jasper', 'agate', 'onyx', 'opal', 'turquoise', 'lapis',
-                        'azurite', 'malachite', 'copper', 'gold', 'silver', 'platinum',
-                        'palladium', 'rhodium', 'iridium', 'osmium', 'ruthenium', 'titanium',
-                        'zirconium', 'hafnium', 'vanadium', 'niobium', 'tantalum', 'chromium',
-                        'molybdenum', 'tungsten', 'manganese', 'technetium', 'rhenium', 'iron',
-                        'cobalt', 'nickel', 'copper', 'zinc', 'gallium', 'indium',
-                        'thallium', 'tin', 'lead', 'bismuth', 'polonium', 'astatine',
-                        'radon', 'francium', 'radium', 'actinium', 'thorium', 'protactinium',
-                        'uranium', 'neptunium', 'plutonium', 'americium', 'curium', 'berkelium',
-                        'californium', 'einsteinium', 'fermium', 'mendelevium', 'nobelium', 'lawrencium',
-                        'rutherfordium', 'dubnium', 'seaborgium', 'bohrium', 'hassium', 'meitnerium',
-                        'darmstadtium', 'roentgenium', 'copernicium', 'nihonium', 'flerovium', 'moscovium',
-                        'livermorium', 'tennessine', 'oganesson', 'hydrogen', 'helium', 'lithium',
-                        'beryllium', 'boron', 'carbon', 'nitrogen', 'oxygen', 'fluorine',
-                        'neon', 'sodium', 'magnesium', 'aluminum', 'silicon', 'phosphorus',
-                        'sulfur', 'chlorine', 'argon', 'potassium', 'calcium', 'scandium',
-                        'titanium', 'vanadium', 'chromium', 'manganese', 'iron', 'cobalt',
-                        'nickel', 'copper', 'zinc', 'gallium', 'germanium', 'arsenic',
-                        'selenium', 'bromine', 'krypton', 'rubidium', 'strontium', 'yttrium',
-                        'zirconium', 'niobium', 'molybdenum', 'technetium', 'ruthenium', 'rhodium',
-                        'palladium', 'silver', 'cadmium', 'indium', 'tin', 'antimony',
-                        'tellurium', 'iodine', 'xenon', 'cesium', 'barium', 'lanthanum',
-                        'cerium', 'praseodymium', 'neodymium', 'promethium', 'samarium', 'europium',
-                        'gadolinium', 'terbium', 'dysprosium', 'holmium', 'erbium', 'thulium',
-                        'ytterbium', 'lutetium', 'hafnium', 'tantalum', 'tungsten', 'rhenium',
-                        'osmium', 'iridium', 'platinum', 'gold', 'mercury', 'thallium',
-                        'lead', 'bismuth', 'polonium', 'astatine', 'radon', 'francium',
-                        'radium', 'actinium', 'thorium', 'protactinium', 'uranium', 'neptunium',
-                        'plutonium', 'americium', 'curium', 'berkelium', 'californium', 'einsteinium',
-                        'fermium', 'mendelevium', 'nobelium', 'lawrencium', 'rutherfordium', 'dubnium',
-                        'seaborgium', 'bohrium', 'hassium', 'meitnerium', 'darmstadtium', 'roentgenium',
-                        'copernicium', 'nihonium', 'flerovium', 'moscovium', 'livermorium', 'tennessine',
-                        'oganesson'}
+        results['outbounds']['sfi_used'].append(item)
 
-        filtered_doc_only = [p for p in result.params_in_doc_only if p.lower() not in common_words and len(p) > 2]
-        if filtered_doc_only:
-            result.warnings += len(filtered_doc_only)
-            print(f"  ⚠️ 文档独有参数（可能未在内核实现）: {len(filtered_doc_only)}")
-            for p in filtered_doc_only[:10]:
-                print(f"    - {p}")
+        if required:
+            if not in_doc:
+                errors.append(f"[出站类型] 必须类型 `{outbound_type}` 未在文档中说明")
+                results['outbounds']['missing_required'].append(outbound_type)
+            if not in_core:
+                errors.append(f"[出站类型] 必须类型 `{outbound_type}` 未在内核注册表中注册")
 
-    print("【4/7】参数类型一致性检查...")
-    for param in result.params_in_both:
-        if param in core_params and param in doc_types:
-            core_type = core_params[param][0]
-            doc_type = doc_types[param]
-            # 简单类型匹配检查
-            core_lower = core_type.lower()
-            doc_lower = doc_type.lower()
-            if any(kw in doc_lower for kw in ['string', 'int', 'bool', 'number', 'array', 'object', 'list', 'map', 'dict']):
-                if ('string' in core_lower and 'string' not in doc_lower) or \
-                   ('int' in core_lower and 'int' not in doc_lower and 'number' not in doc_lower) or \
-                   ('bool' in core_lower and 'bool' not in doc_lower):
-                    result.type_mismatch.append((param, doc_type, core_type))
-                    result.errors += 1
-    print(f"  类型不匹配: {len(result.type_mismatch)}")
+    # ===== 4. DNS 参数检查 =====
+    for param, required, desc in SFI_DNS_PARAMS:
+        in_doc = param in doc['dns_params']
+        in_core = param in core_params['dns']
 
-    print("【5/7】枚举值一致性检查...")
-    for param, doc_values in doc_enums.items():
-        if param in core_enums:
-            core_values = core_enums[param]
-            doc_set = set(v.lower() for v in doc_values)
-            core_set = set(v.lower() for v in core_values)
-            if doc_set != core_set:
-                result.enum_mismatch.append((param, sorted(doc_set), sorted(core_set)))
-                result.errors += 1
-    print(f"  枚举不匹配: {len(result.enum_mismatch)}")
+        item = {
+            'param': param,
+            'required': required,
+            'description': desc,
+            'in_doc': in_doc,
+            'in_core': in_core,
+        }
+        results['dns']['documented'].append(item)
 
-    print("【6/7】客户端代码引用检查...")
-    client_usage = search_params_in_client(client_path, doc_param_set & core_param_set)
-    result.params_missing_client = sorted([p for p, used in client_usage.items() if not used])
-    print(f"  客户端未引用参数: {len(result.params_missing_client)}")
-    if result.params_missing_client:
-        result.warnings += len(result.params_missing_client)
+        if required and not in_doc:
+            errors.append(f"[DNS参数] 必须参数 `dns.{param}` 未在文档中说明")
+            results['dns']['missing_required'].append(param)
 
-    print("【7/7】注册表一致性检查...")
-    core_registry = extract_registry_from_core(core_path)
-    # 从文档中提取注册表类型
-    doc_registry: Dict[str, List[str]] = {}
-    content = doc_path.read_text(encoding='utf-8', errors='ignore')
+    # ===== 5. 路由参数检查 =====
+    for param, required, desc in SFI_ROUTE_PARAMS:
+        in_doc = param in doc['route_params']
+        in_core = param in core_params['route']
 
-    # 检查入站类型
-    inbound_types = ['tun', 'redirect', 'direct', 'socks', 'http', 'mixed',
-                     'shadowsocks', 'snell', 'vmess', 'trojan', 'naive', 'shadowtls',
-                     'vless', 'anytls', 'hysteria', 'tuic', 'hysteria2', 'tailcat', 'cloudflare']
-    doc_inbounds = [t for t in inbound_types if re.search(rf'\b{re.escape(t)}\b', content, re.IGNORECASE)]
-    doc_registry['inbounds'] = doc_inbounds
+        item = {
+            'param': param,
+            'required': required,
+            'description': desc,
+            'in_doc': in_doc,
+            'in_core': in_core,
+        }
+        results['route']['documented'].append(item)
 
-    # 检查出站类型
-    outbound_types = ['direct', 'bridge', 'block', 'selector', 'urltest', 'socks', 'http',
-                      'shadowsocks', 'snell', 'vmess', 'trojan', 'naive', 'tor', 'ssh',
-                      'shadowtls', 'vless', 'anytls', 'hysteria', 'tuic', 'hysteria2', 'tailcat']
-    doc_outbounds = [t for t in outbound_types if re.search(rf'\b{re.escape(t)}\b', content, re.IGNORECASE)]
-    doc_registry['outbounds'] = doc_outbounds
+        if required and not in_doc:
+            errors.append(f"[路由参数] 必须参数 `route.{param}` 未在文档中说明")
+            results['route']['missing_required'].append(param)
 
-    # 对比注册表
-    for reg_type in ['inbounds', 'outbounds']:
-        doc_set = set(doc_registry.get(reg_type, []))
-        core_set = set(t.lower() for t in core_registry.get(reg_type, []))
-        if doc_set != core_set:
-            result.registry_mismatch.append((reg_type, sorted(doc_set), sorted(core_set)))
-            result.errors += 1
+    # ===== 6. 实验配置参数检查 =====
+    for param, required, desc in SFI_EXPERIMENTAL_PARAMS:
+        in_doc = param in doc['experimental_params']
+        in_core = param in core_params['experimental']
 
-    print(f"  注册表不匹配: {len(result.registry_mismatch)}")
+        item = {
+            'param': param,
+            'required': required,
+            'description': desc,
+            'in_doc': in_doc,
+            'in_core': in_core,
+        }
+        results['experimental']['documented'].append(item)
 
-    # API 一致性检查
-    print("  API 签名一致性检查...")
-    doc_apis = extract_apis_from_doc(doc_path)
-    core_apis = extract_apis_from_core(core_path)
-    for api_name in doc_apis:
-        if api_name not in core_apis and len(api_name) > 3:
-            # 检查是否是常见的非 API 词
-            if api_name.lower() not in common_words:
-                result.api_mismatch.append((api_name, doc_apis[api_name], "未在内核找到"))
-                result.warnings += 1
-    print(f"  API 不匹配: {len(result.api_mismatch)}")
+        if required and not in_doc:
+            errors.append(f"[实验参数] 必须参数 `experimental.{param}` 未在文档中说明")
+            results['experimental']['missing_required'].append(param)
 
-    return result
+    # ===== 7. 服务类型检查 =====
+    for service_type, required, desc in SFI_SERVICE_TYPES:
+        in_doc = service_type in doc['service_types']
+        in_core = service_type in core_registry['services']
+
+        item = {
+            'type': service_type,
+            'required': required,
+            'description': desc,
+            'in_doc': in_doc,
+            'in_core': in_core,
+        }
+        results['services']['documented'].append(item)
+
+        if required and not in_doc:
+            errors.append(f"[服务类型] 必须类型 `{service_type}` 未在文档中说明")
+            results['services']['missing_required'].append(service_type)
+
+    # ===== 8. TUN 参数检查 =====
+    for param, required, desc in SFI_TUN_PARAMS:
+        in_doc = param in doc['tun_params']
+        in_core = param in core_params['tun']
+
+        item = {
+            'param': param,
+            'required': required,
+            'description': desc,
+            'in_doc': in_doc,
+            'in_core': in_core,
+        }
+        results['tun']['documented'].append(item)
+
+        if required and not in_doc:
+            errors.append(f"[TUN参数] 必须参数 `{param}` 未在文档中说明")
+            results['tun']['missing_required'].append(param)
+
+    # ===== 9. API 方法检查 =====
+    for api_method, desc in SFI_API_METHODS:
+        in_doc = api_method in doc['api_methods']
+        in_client = api_method in client_usage['api_methods']
+
+        item = {
+            'method': api_method,
+            'description': desc,
+            'in_doc': in_doc,
+            'in_client': in_client,
+        }
+        results['api']['documented'].append(item)
+
+        if not in_doc:
+            warnings.append(f"[API方法] `{api_method}` 未在文档中说明")
+
+    # 客户端使用情况
+    results['client_usage'] = {
+        'top_level': sorted(client_usage['top_level']),
+        'inbound_types': sorted(client_usage['inbound_types']),
+        'outbound_types': sorted(client_usage['outbound_types']),
+        'api_methods': sorted(client_usage['api_methods']),
+    }
+
+    return results, errors, warnings
 
 
 # ========== 报告生成 ==========
-def generate_report(result: CheckResult, doc_path: Path, core_path: Path) -> str:
-    """生成 Markdown 报告"""
+
+def generate_report(results: Dict, errors: List[str], warnings: List[str], doc_path: Path) -> str:
+    """生成 Markdown 格式的检查报告"""
     lines = []
-    lines.append("# 📋 接入文档全量参数仓库一致性检查报告\n")
-    lines.append(f"> 文档: `{doc_path.name}` | 内核: `{core_path.name}`\n")
-    lines.append("## 📊 总体统计\n")
-    lines.append(f"| 指标 | 数量 |")
-    lines.append(f"|------|------|")
-    lines.append(f"| 总参数数 | {result.total_params} |")
-    lines.append(f"| 文档独有 | {len(result.params_in_doc_only)} |")
-    lines.append(f"| 内核独有 | {len(result.params_in_core_only)} |")
-    lines.append(f"| 两者都有 | {len(result.params_in_both)} |")
-    lines.append(f"| 客户端未引用 | {len(result.params_missing_client)} |")
-    lines.append(f"| 类型不匹配 | {len(result.type_mismatch)} |")
-    lines.append(f"| 枚举不匹配 | {len(result.enum_mismatch)} |")
-    lines.append(f"| 注册表不匹配 | {len(result.registry_mismatch)} |")
-    lines.append(f"| API 不匹配 | {len(result.api_mismatch)} |")
-    lines.append(f"| **错误总数** | **{result.errors}** |")
-    lines.append(f"| **警告总数** | **{result.warnings}** |\n")
 
-    if result.errors > 0:
-        lines.append("## 🔴 错误详情\n")
+    lines.append("# 📋 SFI 客户端接入文档参数一致性检查报告")
+    lines.append("")
+    lines.append(f"> 文档: `{doc_path.name}` | 检查范围: SFI iOS 客户端实际接入参数")
+    lines.append("")
 
-        if result.type_mismatch:
-            lines.append("### 参数类型不匹配\n")
-            lines.append("| 参数 | 文档类型 | 内核类型 |")
-            lines.append("|------|---------|---------|")
-            for param, doc_type, core_type in result.type_mismatch:
-                lines.append(f"| `{param}` | {doc_type} | {core_type} |")
-            lines.append("")
+    # 总体统计
+    total_checks = 0
+    passed_checks = 0
+    for category in ['top_level', 'inbounds', 'outbounds', 'dns', 'route', 'experimental', 'services', 'tun', 'api']:
+        if category == 'top_level':
+            total_checks += len(results['top_level']['required']) + len(results['top_level']['optional'])
+            for item in results['top_level']['required'] + results['top_level']['optional']:
+                if item['in_doc']:
+                    passed_checks += 1
+        elif category in ['inbounds', 'outbounds']:
+            total_checks += len(results[category]['sfi_used'])
+            for item in results[category]['sfi_used']:
+                if item['in_doc'] and item['in_core']:
+                    passed_checks += 1
+        elif category in ['dns', 'route', 'experimental', 'services', 'tun']:
+            total_checks += len(results[category]['documented'])
+            for item in results[category]['documented']:
+                if item['in_doc']:
+                    passed_checks += 1
+        elif category == 'api':
+            total_checks += len(results['api']['documented'])
+            for item in results['api']['documented']:
+                if item['in_doc']:
+                    passed_checks += 1
 
-        if result.enum_mismatch:
-            lines.append("### 枚举值不匹配\n")
-            lines.append("| 参数 | 文档枚举值 | 内核枚举值 |")
-            lines.append("|------|-----------|-----------|")
-            for param, doc_vals, core_vals in result.enum_mismatch:
-                lines.append(f"| `{param}` | {', '.join(doc_vals)} | {', '.join(core_vals)} |")
-            lines.append("")
+    lines.append("## 📊 总体统计")
+    lines.append("")
+    lines.append("| 指标 | 数量 |")
+    lines.append("|------|------|")
+    lines.append(f"| 检查项总数 | {total_checks} |")
+    lines.append(f"| 通过检查项 | {passed_checks} |")
+    lines.append(f"| 错误总数 | {len(errors)} |")
+    lines.append(f"| 警告总数 | {len(warnings)} |")
+    lines.append("")
 
-        if result.registry_mismatch:
-            lines.append("### 注册表不匹配\n")
-            lines.append("| 注册表 | 文档类型 | 内核类型 |")
-            lines.append("|--------|---------|---------|")
-            for reg_type, doc_types_list, core_types_list in result.registry_mismatch:
-                lines.append(f"| {reg_type} | {', '.join(doc_types_list)} | {', '.join(core_types_list)} |")
-            lines.append("")
+    # 错误详情
+    if errors:
+        lines.append("## 🔴 错误详情（必须修复）")
+        lines.append("")
+        for i, error in enumerate(errors, 1):
+            lines.append(f"{i}. {error}")
+        lines.append("")
 
-    if result.warnings > 0:
-        lines.append("## 🟡 警告详情\n")
+    # 各模块详细检查
+    lines.append("## 📝 各模块详细检查")
+    lines.append("")
 
-        if result.params_in_doc_only:
-            filtered = [p for p in result.params_in_doc_only if len(p) > 2]
-            if filtered:
-                lines.append(f"### 文档独有参数（{len(filtered)} 个，可能未在内核实现）\n")
-                lines.append("```")
-                for p in filtered[:50]:
-                    lines.append(f"  {p}")
-                if len(filtered) > 50:
-                    lines.append(f"  ... 还有 {len(filtered) - 50} 个")
-                lines.append("```\n")
+    # 顶层字段
+    lines.append("### 1. 顶层字段")
+    lines.append("")
+    lines.append("#### 必须字段")
+    lines.append("")
+    lines.append("| 字段 | 说明 | 文档 | 内核 | 状态 |")
+    lines.append("|------|------|------|------|------|")
+    for item in results['top_level']['required']:
+        status = "✅" if item['in_doc'] and item['in_core'] else "❌"
+        lines.append(f"| `{item['field']}` | {item['description']} | {'✅' if item['in_doc'] else '❌'} | {'✅' if item['in_core'] else '❌'} | {status} |")
+    lines.append("")
 
-        if result.params_missing_client:
-            lines.append(f"### 客户端未引用参数（{len(result.params_missing_client)} 个）\n")
-            lines.append("```")
-            for p in result.params_missing_client[:30]:
-                lines.append(f"  {p}")
-            if len(result.params_missing_client) > 30:
-                lines.append(f"  ... 还有 {len(result.params_missing_client) - 30} 个")
-            lines.append("```\n")
+    lines.append("#### 可选字段")
+    lines.append("")
+    lines.append("| 字段 | 说明 | 文档 | 内核 | 状态 |")
+    lines.append("|------|------|------|------|------|")
+    for item in results['top_level']['optional']:
+        status = "✅" if item['in_doc'] else "⚠️"
+        lines.append(f"| `{item['field']}` | {item['description']} | {'✅' if item['in_doc'] else '⚠️'} | {'✅' if item['in_core'] else '❓'} | {status} |")
+    lines.append("")
 
-        if result.api_mismatch:
-            lines.append(f"### API 方法未在内核找到（{len(result.api_mismatch)} 个）\n")
-            lines.append("| API 方法 | 文档签名 | 状态 |")
-            lines.append("|---------|---------|------|")
-            for name, sig, status in result.api_mismatch[:20]:
-                lines.append(f"| `{name}` | `{sig}` | {status} |")
-            lines.append("")
+    lines.append("#### 不适用 SFI 的字段")
+    lines.append("")
+    lines.append("| 字段 | 原因 | 文档中出现 |")
+    lines.append("|------|------|-----------|")
+    for item in results['top_level']['not_applicable']:
+        lines.append(f"| `{item['field']}` | {item['reason']} | {'⚠️ 是' if item['in_doc'] else '✅ 否'} |")
+    lines.append("")
 
-    lines.append("## ✅ 检查结论\n")
-    if result.errors == 0 and result.warnings == 0:
-        lines.append("🎉 **所有检查通过！文档与内核代码完全一致。**\n")
-    elif result.errors == 0:
-        lines.append(f"✅ **错误检查通过**，但存在 {result.warnings} 个警告（不阻塞）。\n")
+    # 入站类型
+    lines.append("### 2. 入站类型")
+    lines.append("")
+    lines.append("#### SFI 实际使用的入站类型")
+    lines.append("")
+    lines.append("| 类型 | 说明 | 必须 | 文档 | 内核 | 状态 |")
+    lines.append("|------|------|------|------|------|------|")
+    for item in results['inbounds']['sfi_used']:
+        status = "✅" if item['in_doc'] and item['in_core'] else "❌"
+        lines.append(f"| `{item['type']}` | {item['description']} | {'是' if item['required'] else '否'} | {'✅' if item['in_doc'] else '❌'} | {'✅' if item['in_core'] else '❌'} | {status} |")
+    lines.append("")
+
+    lines.append("#### 不适用 SFI 的入站类型（服务端/Linux 特有）")
+    lines.append("")
+    lines.append("| 类型 | 原因 | 文档中出现 |")
+    lines.append("|------|------|-----------|")
+    for item in results['inbounds']['not_applicable']:
+        lines.append(f"| `{item['type']}` | {item['reason']} | {'⚠️ 是' if item['in_doc'] else '✅ 否'} |")
+    lines.append("")
+
+    # 出站类型
+    lines.append("### 3. 出站类型")
+    lines.append("")
+    lines.append("| 类型 | 说明 | 必须 | 文档 | 内核 | 状态 |")
+    lines.append("|------|------|------|------|------|------|")
+    for item in results['outbounds']['sfi_used']:
+        status = "✅" if item['in_doc'] and item['in_core'] else "❌"
+        lines.append(f"| `{item['type']}` | {item['description']} | {'是' if item['required'] else '否'} | {'✅' if item['in_doc'] else '❌'} | {'✅' if item['in_core'] else '❌'} | {status} |")
+    lines.append("")
+
+    # DNS 参数
+    lines.append("### 4. DNS 配置参数")
+    lines.append("")
+    lines.append("| 参数 | 说明 | 必须 | 文档 | 内核 | 状态 |")
+    lines.append("|------|------|------|------|------|------|")
+    for item in results['dns']['documented']:
+        status = "✅" if item['in_doc'] else ("❌" if item['required'] else "⚠️")
+        lines.append(f"| `dns.{item['param']}` | {item['description']} | {'是' if item['required'] else '否'} | {'✅' if item['in_doc'] else '❌'} | {'✅' if item['in_core'] else '❓'} | {status} |")
+    lines.append("")
+
+    # 路由参数
+    lines.append("### 5. 路由配置参数")
+    lines.append("")
+    lines.append("| 参数 | 说明 | 必须 | 文档 | 内核 | 状态 |")
+    lines.append("|------|------|------|------|------|------|")
+    for item in results['route']['documented']:
+        status = "✅" if item['in_doc'] else ("❌" if item['required'] else "⚠️")
+        lines.append(f"| `route.{item['param']}` | {item['description']} | {'是' if item['required'] else '否'} | {'✅' if item['in_doc'] else '❌'} | {'✅' if item['in_core'] else '❓'} | {status} |")
+    lines.append("")
+
+    # 实验配置参数
+    lines.append("### 6. 实验配置参数")
+    lines.append("")
+    lines.append("| 参数 | 说明 | 必须 | 文档 | 内核 | 状态 |")
+    lines.append("|------|------|------|------|------|------|")
+    for item in results['experimental']['documented']:
+        status = "✅" if item['in_doc'] else ("❌" if item['required'] else "⚠️")
+        lines.append(f"| `experimental.{item['param']}` | {item['description']} | {'是' if item['required'] else '否'} | {'✅' if item['in_doc'] else '❌'} | {'✅' if item['in_core'] else '❓'} | {status} |")
+    lines.append("")
+
+    # 服务类型
+    lines.append("### 7. 服务配置类型")
+    lines.append("")
+    lines.append("| 类型 | 说明 | 必须 | 文档 | 内核 | 状态 |")
+    lines.append("|------|------|------|------|------|------|")
+    for item in results['services']['documented']:
+        status = "✅" if item['in_doc'] else ("❌" if item['required'] else "⚠️")
+        lines.append(f"| `{item['type']}` | {item['description']} | {'是' if item['required'] else '否'} | {'✅' if item['in_doc'] else '❌'} | {'✅' if item['in_core'] else '❓'} | {status} |")
+    lines.append("")
+
+    # TUN 参数
+    lines.append("### 8. TUN 入站参数（iOS 必须）")
+    lines.append("")
+    lines.append("| 参数 | 说明 | 必须 | 文档 | 内核 | 状态 |")
+    lines.append("|------|------|------|------|------|------|")
+    for item in results['tun']['documented']:
+        status = "✅" if item['in_doc'] else ("❌" if item['required'] else "⚠️")
+        lines.append(f"| `{item['param']}` | {item['description']} | {'是' if item['required'] else '否'} | {'✅' if item['in_doc'] else '❌'} | {'✅' if item['in_core'] else '❓'} | {status} |")
+    lines.append("")
+
+    # API 方法
+    lines.append("### 9. libbox API 方法")
+    lines.append("")
+    lines.append("| 方法 | 说明 | 文档 | 客户端调用 | 状态 |")
+    lines.append("|------|------|------|-----------|------|")
+    for item in results['api']['documented']:
+        status = "✅" if item['in_doc'] else "⚠️"
+        lines.append(f"| `{item['method']}` | {item['description']} | {'✅' if item['in_doc'] else '⚠️'} | {'✅' if item['in_client'] else '❓'} | {status} |")
+    lines.append("")
+
+    # 客户端使用情况
+    lines.append("### 10. 客户端代码实际引用")
+    lines.append("")
+    lines.append("| 类别 | 引用的参数/类型 |")
+    lines.append("|------|----------------|")
+    for category, items in results['client_usage'].items():
+        if items:
+            lines.append(f"| {category} | {', '.join(f'`{i}`' for i in items)} |")
+        else:
+            lines.append(f"| {category} | （未检测到） |")
+    lines.append("")
+
+    # 警告详情
+    if warnings:
+        lines.append("## 🟡 警告详情（建议优化）")
+        lines.append("")
+        for i, warning in enumerate(warnings, 1):
+            lines.append(f"{i}. {warning}")
+        lines.append("")
+
+    # 结论
+    lines.append("## ✅ 检查结论")
+    lines.append("")
+    if errors:
+        lines.append(f"❌ **检查未通过**，存在 {len(errors)} 个错误必须修复。")
     else:
-        lines.append(f"❌ **检查未通过**，存在 {result.errors} 个错误，{result.warnings} 个警告。\n")
+        lines.append(f"✅ **错误检查通过**，存在 {len(warnings)} 个警告（不阻塞，建议优化）。")
+    lines.append("")
+    lines.append(f"- 检查项总数：{total_checks}")
+    lines.append(f"- 通过检查项：{passed_checks}")
+    lines.append(f"- 覆盖率：{passed_checks}/{total_checks} = {passed_checks*100//total_checks if total_checks > 0 else 0}%")
+    lines.append("")
 
     return "\n".join(lines)
 
 
 # ========== 主函数 ==========
+
 def main():
-    parser = argparse.ArgumentParser(description='接入文档全量参数仓库一致性检查')
+    parser = argparse.ArgumentParser(description='SFI 客户端接入文档参数一致性检查')
     parser.add_argument('--doc', required=True, help='接入文档路径')
     parser.add_argument('--core', required=True, help='sing-box 内核代码路径')
     parser.add_argument('--client', required=True, help='SFI 客户端代码路径')
@@ -848,55 +887,53 @@ def main():
         print(f"❌ 内核代码不存在: {core_path}")
         sys.exit(1)
 
-    print("=" * 60)
-    print("  接入文档全量参数仓库一致性检查")
-    print("=" * 60)
-    print(f"  文档: {doc_path}")
-    print(f"  内核: {core_path}")
-    print(f"  客户端: {client_path}")
-    print("=" * 60)
-    print()
+    print("==========================================")
+    print("  SFI 客户端接入文档参数一致性检查")
+    print("  （聚焦 SFI iOS 客户端实际接入参数）")
+    print("==========================================")
+    print("")
 
-    result = run_checks(doc_path, core_path, client_path)
-
-    print()
-    print("=" * 60)
-    print("  检查完成")
-    print("=" * 60)
-    print(f"  错误: {result.errors}")
-    print(f"  警告: {result.warnings}")
-    print()
+    # 运行检查
+    results, errors, warnings = run_checks(doc_path, core_path, client_path)
 
     # 生成报告
-    report = generate_report(result, doc_path, core_path)
-    with open(args.output, 'w', encoding='utf-8') as f:
-        f.write(report)
-    print(f"✅ 报告已生成: {args.output}")
+    report = generate_report(results, errors, warnings, doc_path)
 
-    # 生成 JSON
+    # 保存报告
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(report, encoding='utf-8')
+    print(f"📄 报告已保存: {output_path}")
+
+    # 保存 JSON 结果
+    json_path = Path(args.json)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
     json_result = {
-        'total_params': result.total_params,
-        'params_in_doc_only': result.params_in_doc_only,
-        'params_in_core_only': result.params_in_core_only,
-        'params_in_both': result.params_in_both,
-        'params_missing_client': result.params_missing_client,
-        'type_mismatch': [{'param': p, 'doc_type': d, 'core_type': c} for p, d, c in result.type_mismatch],
-        'enum_mismatch': [{'param': p, 'doc_values': d, 'core_values': c} for p, d, c in result.enum_mismatch],
-        'registry_mismatch': [{'type': t, 'doc_types': d, 'core_types': c} for t, d, c in result.registry_mismatch],
-        'api_mismatch': [{'name': n, 'doc_signature': d, 'status': s} for n, d, s in result.api_mismatch],
-        'errors': result.errors,
-        'warnings': result.warnings,
+        'errors': errors,
+        'warnings': warnings,
+        'results': results,
     }
-    with open(args.json, 'w', encoding='utf-8') as f:
-        json.dump(json_result, f, ensure_ascii=False, indent=2)
-    print(f"✅ JSON 结果已生成: {args.json}")
+    json_path.write_text(json.dumps(json_result, ensure_ascii=False, indent=2), encoding='utf-8')
+    print(f"📊 JSON 结果已保存: {json_path}")
+    print("")
 
-    # 最终判定
-    if result.errors > 0:
-        print(f"\n❌ 检查未通过，存在 {result.errors} 个错误")
+    # 输出摘要
+    print("=== 检查摘要 ===")
+    print(f"  错误: {len(errors)}")
+    print(f"  警告: {len(warnings)}")
+    print("")
+
+    if errors:
+        print("🔴 错误列表:")
+        for error in errors:
+            print(f"  - {error}")
+        print("")
+
+    if errors:
+        print(f"❌ 检查未通过，存在 {len(errors)} 个错误")
         sys.exit(1)
     else:
-        print(f"\n✅ 检查通过（{result.warnings} 个警告）")
+        print(f"✅ 检查通过（{len(warnings)} 个警告）")
         sys.exit(0)
 
 
