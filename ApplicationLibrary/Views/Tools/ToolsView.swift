@@ -3,78 +3,46 @@ import Library
 import SwiftUI
 
 /// 工具页面
-/// 提供网络诊断、端口转发、URL测试等实用工具入口
+/// 对标官方 sing-box for iOS 工具页面结构，提供网络诊断和 MITM 专项工具
 public struct ToolsView: View {
-    @State private var showPortForward = false
-    @State private var showURLTest = false
-    @State private var showDNSTest = false
-
     public init() {}
 
     public var body: some View {
         NavigationStack {
             List {
-                // 网络诊断工具
-                Section("网络诊断") {
+                // 网络诊断（对标官方 Network 分类）
+                Section("网络") {
                     NavigationLink {
                         URLTestView()
                     } label: {
-                        toolRow(
-                            icon: "globe",
-                            title: "URL 测试",
-                            subtitle: "测试节点延迟和可用性",
-                            color: .blue
-                        )
+                        Label("URL 测试", systemImage: "globe")
                     }
 
                     NavigationLink {
                         DNSTestView()
                     } label: {
-                        toolRow(
-                            icon: "network",
-                            title: "DNS 测试",
-                            subtitle: "检测 DNS 解析和泄漏",
-                            color: .green
-                        )
+                        Label("DNS 测试", systemImage: "network")
                     }
                 }
 
-                // 流量工具
-                Section("流量工具") {
-                    NavigationLink {
-                        PortForwardView()
-                    } label: {
-                        toolRow(
-                            icon: "arrow.left.arrow.right",
-                            title: "端口转发",
-                            subtitle: "本地端口转发到远程地址",
-                            color: .orange
-                        )
-                    }
-                }
-
-                // MITM 工具
-                Section("MITM 工具") {
+                // MITM 专项工具（本项目特有）
+                Section("MITM") {
                     Button {
                         MITMSettingsPresenter.show()
                     } label: {
-                        toolRow(
-                            icon: "lock.shield",
-                            title: "MITM 设置",
-                            subtitle: "配置 HTTPS 解密和重写规则",
-                            color: .purple
-                        )
+                        HStack {
+                            Label("MITM 设置", systemImage: "lock.shield")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                        }
                     }
 
                     NavigationLink {
                         MITMLogView()
                     } label: {
-                        toolRow(
-                            icon: "doc.text.magnifyingglass",
-                            title: "MITM 日志",
-                            subtitle: "查看 HTTPS 解密日志",
-                            color: .purple
-                        )
+                        Label("MITM 日志", systemImage: "doc.text.magnifyingglass")
                     }
                 }
 
@@ -92,35 +60,6 @@ public struct ToolsView: View {
             .navigationTitle("工具")
             .navigationBarTitleDisplayMode(.inline)
         }
-    }
-
-    // MARK: - 工具行组件
-
-    private func toolRow(icon: String, title: String, subtitle: String, color: Color) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 18))
-                .foregroundColor(.white)
-                .frame(width: 32, height: 32)
-                .background(color)
-                .cornerRadius(8)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.body)
-                    .foregroundColor(.primary)
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .foregroundColor(.secondary)
-                .font(.caption)
-        }
-        .padding(.vertical, 4)
     }
 }
 
@@ -293,84 +232,6 @@ struct DNSTestView: View {
                     results.append("解析失败")
                 }
             }
-        }
-    }
-}
-
-// MARK: - 端口转发视图
-
-/// 端口转发页面
-/// 本地端口转发到远程地址
-struct PortForwardView: View {
-    @State private var localPort = "8080"
-    @State private var remoteHost = "127.0.0.1"
-    @State private var remotePort = "1080"
-    @State private var isForwarding = false
-    @State private var statusMessage = ""
-
-    var body: some View {
-        Form {
-            Section("本地监听") {
-                HStack {
-                    Text("端口")
-                    TextField("本地端口", text: $localPort)
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                }
-            }
-
-            Section("远程目标") {
-                HStack {
-                    Text("主机")
-                    TextField("远程主机", text: $remoteHost)
-                        .autocapitalization(.none)
-                        .multilineTextAlignment(.trailing)
-                }
-                HStack {
-                    Text("端口")
-                    TextField("远程端口", text: $remotePort)
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                }
-            }
-
-            Section {
-                Button {
-                    toggleForwarding()
-                } label: {
-                    HStack {
-                        Spacer()
-                        Text(isForwarding ? "停止转发" : "开始转发")
-                            .foregroundColor(isForwarding ? .red : .accentColor)
-                        Spacer()
-                    }
-                }
-            }
-
-            if !statusMessage.isEmpty {
-                Section("状态") {
-                    Text(statusMessage)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .navigationTitle("端口转发")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func toggleForwarding() {
-        if isForwarding {
-            isForwarding = false
-            statusMessage = "已停止端口转发"
-        } else {
-            guard let localPortInt = Int(localPort),
-                  let remotePortInt = Int(remotePort),
-                  !remoteHost.isEmpty else {
-                statusMessage = "请填写有效的端口和主机"
-                return
-            }
-            isForwarding = true
-            statusMessage = "正在转发 0.0.0.0:\(localPortInt) -> \(remoteHost):\(remotePortInt)"
         }
     }
 }

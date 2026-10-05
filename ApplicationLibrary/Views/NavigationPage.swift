@@ -82,7 +82,7 @@ public extension NavigationPage {
         case .logs:
             return "list.bullet.rectangle"
         case .tools:
-            return "wrench.and.screwdriver.fill"
+            return "terminal.fill"
         case .settings:
             return "gear.circle.fill"
         }
