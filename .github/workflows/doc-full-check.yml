@@ -19,6 +19,9 @@ concurrency:
   group: doc-full-check-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   doc-full-check:
     name: 接入文档全量参数仓库一致性检查
