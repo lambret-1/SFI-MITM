@@ -243,11 +243,26 @@ def extract_registry_from_core(core_path: Path) -> Dict[str, List[str]]:
 
     # 提取入站注册（包括 RegisterInbound、RegisterRedirect、RegisterTProxy）
     inbound_matches = re.findall(r'(\w+)\.Register(?:Inbound|Redirect|TProxy)\(registry\)', all_content)
-    registry['inbounds'] = list(set(m.lower() for m in inbound_matches))
+    inbound_types = set()
+    for m in inbound_matches:
+        name = m.lower()
+        # cloudflared 包注册的类型名是 cloudflare
+        if name == 'cloudflared':
+            name = 'cloudflare'
+        inbound_types.add(name)
+    registry['inbounds'] = sorted(inbound_types)
 
     # 提取出站注册（包括 RegisterOutbound、RegisterSelector、RegisterURLTest）
-    outbound_matches = re.findall(r'(\w+)\.Register(?:Outbound|Selector|URLTest)\(registry\)', all_content)
-    registry['outbounds'] = list(set(m.lower() for m in outbound_matches))
+    # 注意：group.RegisterSelector 的类型名是 selector，不是 group
+    outbound_outbound = re.findall(r'(\w+)\.RegisterOutbound\(registry\)', all_content)
+    outbound_selector = re.findall(r'\w+\.RegisterSelector\(registry\)', all_content)
+    outbound_urltest = re.findall(r'\w+\.RegisterURLTest\(registry\)', all_content)
+    outbound_types = set(m.lower() for m in outbound_outbound)
+    if outbound_selector:
+        outbound_types.add('selector')
+    if outbound_urltest:
+        outbound_types.add('urltest')
+    registry['outbounds'] = sorted(outbound_types)
 
     # 提取端点注册
     endpoint_matches = re.findall(r'(\w+)\.RegisterEndpoint\(registry\)|register(\w+)Endpoint\(registry\)', all_content)
