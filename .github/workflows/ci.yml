@@ -1,4 +1,4 @@
-name: SFI PR 快速检查
+name: SFI CI 全流程（门禁检查 + iOS 构建）
 
 on:
   push:
@@ -8,14 +8,21 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: sfi-pr-quick-${{ github.ref }}-${{ github.event_name }}
+  group: sfi-ci-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions:
   contents: write
   pull-requests: read
 
+env:
+  GO_VERSION: "1.25.5"
+  XCODE_SCHEME: "SFI"
+  BUILD_CONFIGURATION: "Release"
+  DERIVED_DATA_PATH: "build/DerivedData"
+
 jobs:
+  # ========== 第一阶段：快速门禁检查（并行，Linux）==========
   quick-check:
     name: 静态检查
     runs-on: ubuntu-latest
@@ -109,14 +116,10 @@ jobs:
             echo "⚠️ 检查 entitlements | 未找到文件" >> quick_summary.log
             exit 0
           fi
-          echo "检查 entitlements 文件列表:"
-          echo "$ENT_FILES"
-          # 遍历所有 entitlements，只要有一个包含网络扩展权限即通过
           FOUND_NETEXT=0
           while IFS= read -r ENT; do
             if grep -q 'com.apple.developer.networking.networkextension' "$ENT"; then
               FOUND_NETEXT=1
-              echo "  ✅ $ENT 包含网络扩展权限"
             fi
             if grep -qE 'get-task-allow.*true' "$ENT"; then
               echo "❌ entitlements 包含 get-task-allow=true: $ENT" | tee -a quick_errors.log
@@ -125,7 +128,7 @@ jobs:
             fi
           done <<< "$ENT_FILES"
           if [ "$FOUND_NETEXT" -eq 0 ]; then
-            echo "❌ 缺少关键权限: com.apple.developer.networking.networkextension（所有 entitlements 均未包含）" | tee -a quick_errors.log
+            echo "❌ 缺少关键权限: com.apple.developer.networking.networkextension" | tee -a quick_errors.log
             echo "❌ 检查 entitlements | 缺少网络扩展权限" >> quick_summary.log
             exit 1
           fi
@@ -150,7 +153,7 @@ jobs:
             'BEGIN (RSA|EC|OPENSSH|DSA) PRIVATE KEY|api[_-]?key\s*[:=]\s*["'"'"'][A-Za-z0-9_\-]{16,}|secret\s*[:=]\s*["'"'"'][A-Za-z0-9_\-]{16,}' \
             --include='*.swift' --include='*.plist' --include='*.json' \
             --include='*.yml' --include='*.yaml' --include='*.sh' . 2>/dev/null; then
-            echo "❌ 疑似是硬编码密钥" | tee -a quick_errors.log
+            echo "❌ 疑似硬编码密钥" | tee -a quick_errors.log
             echo "❌ 检查硬编码密钥 | 发现疑似密钥" >> quick_summary.log
             exit 1
           fi
@@ -166,33 +169,11 @@ jobs:
             exit 0
           fi
           if ! git diff --check "origin/${BASE_REF}...HEAD"; then
-            echo "❌ 存在空白错误（行尾空格、tab 混用等）" | tee -a quick_errors.log
+            echo "❌ 存在空白错误" | tee -a quick_errors.log
             echo "❌ 检查空白错误 | 存在行尾空格或 Tab 混用" >> quick_summary.log
             exit 1
           fi
           echo "✅ 检查空白错误 | 无空白错误" >> quick_summary.log
-
-      - name: 检查文件末尾换行（警告）
-        if: always()
-        run: |
-          FOUND=$(git ls-files '*.swift' '*.plist' '*.yml' '*.md' | while read -r f; do
-            [ -s "$f" ] && [ "$(tail -c1 "$f" | wc -l)" -eq 0 ] && echo "$f"
-          done || true)
-          if [ -n "$FOUND" ]; then
-            echo "⚠️ 检查末尾换行 | 部分文件缺少换行（不阻塞）" >> quick_summary.log
-          else
-            echo "✅ 检查末尾换行 | 所有文件末尾有换行" >> quick_summary.log
-          fi
-
-      - name: 检查重复文件名（警告）
-        if: always()
-        run: |
-          DUP=$(git ls-files '*.swift' | xargs -n1 basename 2>/dev/null | sort | uniq -d || true)
-          if [ -n "$DUP" ]; then
-            echo "⚠️ 检查重复文件名 | 存在重复文件名（不阻塞）" >> quick_summary.log
-          else
-            echo "✅ 检查重复的文件名 | 无重复文件名" >> quick_summary.log
-          fi
 
       - name: 上传快速检查汇总
         if: always()
@@ -212,32 +193,25 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
 
       - name: 准备 SwiftLint 配置
         run: |
           if [ ! -f .swiftlint.yml ]; then
-            echo "⚠️ 未找到 .swiftlint.yml，使用默认配置"
             printf 'disabled_rules:\n  - trailing_whitespace\n  - line_length\nopt_in_rules:\n  - force_unwrapping\n  - empty_count\n  - closure_spacing\n' > .swiftlint.yml
           fi
 
-      - name: 运行 SwiftLint 并生成 JSON
+      - name: 运行 SwiftLint
         continue-on-error: true
         run: |
           for i in 1 2 3; do
             if docker pull ghcr.io/realm/swiftlint:0.57.1; then break; fi
-            echo "Docker 镜像拉取失败，5 秒后重试 ($i/3)..."
             sleep 5
           done
-
-          docker run --rm \
-            -v "$PWD:/work" -w /work \
+          docker run --rm -v "$PWD:/work" -w /work \
             ghcr.io/realm/swiftlint:0.57.1 \
-            swiftlint lint --strict --quiet \
-            --reporter json > swiftlint.json || true
+            swiftlint lint --strict --quiet --reporter json > swiftlint.json || true
 
-      - name: 上传 SwiftLint JSON 报告
+      - name: 上传 SwiftLint JSON
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -251,13 +225,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: 检出 SFI 代码（sing-box-for-apple 分支）
+      - name: 检出 SFI 代码
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
           path: sfi
 
-      - name: 检出 sing-box 核心代码（用于 API 一致性核对）
+      - name: 检出 sing-box 核心代码
         uses: actions/checkout@v4
         with:
           repository: lambret-1/SFI-MITM
@@ -268,9 +241,6 @@ jobs:
       - name: 运行接入文档门禁检查
         working-directory: sfi
         run: |
-          echo "=========================================="
-          echo "  运行接入文档门禁检查"
-          echo "=========================================="
           chmod +x .github/scripts/check-docs.sh
           .github/scripts/check-docs.sh
 
@@ -279,14 +249,171 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: doc-check-results
-          path: |
-            sfi/doc_summary.log
+          path: sfi/doc_summary.log
           if-no-files-found: ignore
           retention-days: 1
 
+  # ========== 第二阶段：iOS 构建（macOS，依赖门禁通过）==========
+  build-ios:
+    name: 构建 SFI iOS 未签名 IPA
+    needs: [quick-check, swiftlint, doc-check]
+    if: |
+      always() &&
+      needs.quick-check.result == 'success' &&
+      needs.swiftlint.result == 'success' &&
+      needs.doc-check.result == 'success'
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: 检出 SFI 代码
+        uses: actions/checkout@v4
+        with:
+          path: sfi
+
+      - name: 初始化 git submodule
+        working-directory: sfi
+        run: git submodule update --init --recursive
+
+      - name: 检出 sing-box 核心代码
+        uses: actions/checkout@v4
+        with:
+          repository: lambret-1/SFI-MITM
+          ref: sing-box
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: sing-box-core
+
+      - name: 计算 sing-box 核心 commit hash
+        id: core-sha
+        run: |
+          CORE_SHA=$(cd sing-box-core && git rev-parse HEAD)
+          echo "core_sha=$CORE_SHA" >> $GITHUB_OUTPUT
+          echo "core_sha_short=${CORE_SHA:0:8}" >> $GITHUB_OUTPUT
+
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: sing-box-core/go.sum
+
+      - name: 缓存 gomobile
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: ${{ runner.os }}-gomobile-${{ env.GO_VERSION }}
+
+      - name: 安装 gomobile
+        run: |
+          if [ ! -f ~/go/bin/gomobile ]; then
+            go install github.com/sagernet/gomobile/cmd/gomobile@latest
+            gomobile init
+          fi
+
+      - name: 缓存 Libbox.xcframework
+        id: cache-libbox
+        uses: actions/cache@v4
+        with:
+          path: sing-box-core/Libbox.xcframework
+          key: libbox-ios-arm64-${{ steps.core-sha.outputs.core_sha }}
+          restore-keys: libbox-ios-arm64-
+
+      - name: 构建 Libbox（缓存未命中时）
+        if: steps.cache-libbox.outputs.cache-hit != 'true'
+        working-directory: sing-box-core
+        run: |
+          go run ./cmd/internal/build_libbox -target apple -platform ios
+          rm -rf Libbox.xcframework/ios-arm64_x86_64-simulator
+          du -sh Libbox.xcframework
+
+      - name: 复制 Libbox 到项目
+        run: |
+          rm -rf sfi/Libbox.xcframework
+          cp -R sing-box-core/Libbox.xcframework sfi/Libbox.xcframework
+
+      - name: 构建 SFI iOS App
+        working-directory: sfi
+        run: |
+          set +e
+          xcodebuild \
+            -project sing-box.xcodeproj \
+            -scheme "${{ env.XCODE_SCHEME }}" \
+            -configuration "${{ env.BUILD_CONFIGURATION }}" \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "${{ env.DERIVED_DATA_PATH }}" \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+            DEBUG_INFORMATION_FORMAT=dwarf \
+            BUILD_LIBRARY_FOR_DISTRIBUTION=NO \
+            SWIFT_OPTIMIZATION_LEVEL=-O \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            build > build.log 2>&1
+          BUILD_EXIT=$?
+          set -e
+          if [ "$BUILD_EXIT" -ne 0 ]; then
+            echo "❌ xcodebuild 构建失败"
+            grep -n "error:" build.log | head -40
+            tail -50 build.log
+            exit 1
+          fi
+          echo "✅ xcodebuild 构建成功"
+
+      - name: 打包 IPA（ldid 注入 entitlements）
+        working-directory: sfi
+        run: |
+          brew list ldid &>/dev/null || brew install ldid
+          APP_PATH=$(find "${{ env.DERIVED_DATA_PATH }}/Build/Products" -name "sing-box.app" -type d | head -1)
+          rm -rf Payload && mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          find Payload -name "_CodeSignature" -type d -exec rm -rf {} + 2>/dev/null || true
+          find Payload -name "embedded.mobileprovision" -delete 2>/dev/null || true
+
+          # 注入主 App entitlements
+          ldid -S"SFI/SFI.entitlements" "Payload/sing-box.app/sing-box"
+          echo "✅ 主 App entitlements 已注入"
+
+          # 注入所有 Extension entitlements
+          for APPEX in Payload/sing-box.app/PlugIns/*.appex; do
+            [ -d "$APPEX" ] || continue
+            APPEX_NAME=$(basename "$APPEX" .appex)
+            BINARY_NAME=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APPEX/Info.plist" 2>/dev/null || echo "$APPEX_NAME")
+            ENT_FILE="Extension/Extension.entitlements"
+            case "$APPEX_NAME" in
+              *FileProvider*) ENT_FILE="FileProviderExtension/FileProviderExtension.entitlements" ;;
+              *Intents*) ENT_FILE="IntentsExtension/IntentsExtension.entitlements" ;;
+            esac
+            if [ -f "$APPEX/$BINARY_NAME" ] && [ -f "$ENT_FILE" ]; then
+              ldid -S"$ENT_FILE" "$APPEX/$BINARY_NAME"
+              echo "✅ $APPEX_NAME entitlements 已注入"
+            fi
+          done
+
+          zip -r -y SFI-TrollStore.ipa Payload/
+          rm -rf Payload
+          IPA_SIZE=$(stat -f%z SFI-TrollStore.ipa)
+          echo "IPA_SIZE=$IPA_SIZE" >> $GITHUB_ENV
+          echo "✅ IPA 打包完成: $(ls -lh SFI-TrollStore.ipa | awk '{print $5}')"
+
+      - name: 上传 IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: SFI-TrollStore.ipa
+          path: sfi/SFI-TrollStore.ipa
+          retention-days: 30
+
+      - name: 上传构建日志（失败时）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            sfi/build.log
+            sfi/${{ env.DERIVED_DATA_PATH }}/Logs/
+          retention-days: 7
+
+  # ========== 第三阶段：生成报告与最终判定 ==========
   report:
     name: 生成报告与最终判定
-    needs: [quick-check, swiftlint, doc-check]
+    needs: [quick-check, swiftlint, doc-check, build-ios]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -297,13 +424,13 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 下载错误日志
+      - name: 下载快速检查结果
         uses: actions/download-artifact@v4
         with:
           name: quick-check-results
           path: ./artifacts/quick-check
 
-      - name: 下载 SwiftLint JSON
+      - name: 下载 SwiftLint 结果
         uses: actions/download-artifact@v4
         with:
           name: swiftlint-json
@@ -315,44 +442,37 @@ jobs:
           name: doc-check-results
           path: ./artifacts/doc-check
 
-      - name: 生成可视化报告 (log/README.md)
+      - name: 生成可视化报告
         run: |
           cat << 'PYTHON_SCRIPT' > /tmp/generate_report.py
           import json, os, collections
           from datetime import datetime, timezone, timedelta
 
           quick_summary = []
-          quick_summary_path = './artifacts/quick-check/quick_summary.log'
-          if os.path.exists(quick_summary_path):
-              with open(quick_summary_path, 'r', encoding='utf-8') as f:
+          if os.path.exists('./artifacts/quick-check/quick_summary.log'):
+              with open('./artifacts/quick-check/quick_summary.log', 'r', encoding='utf-8') as f:
                   quick_summary = [line.strip() for line in f if line.strip()]
 
           quick_errors = []
-          quick_log_path = './artifacts/quick-check/quick_errors.log'
-          if os.path.exists(quick_log_path):
-              with open(quick_log_path, 'r', encoding='utf-8') as f:
+          if os.path.exists('./artifacts/quick-check/quick_errors.log'):
+              with open('./artifacts/quick-check/quick_errors.log', 'r', encoding='utf-8') as f:
                   quick_errors = [line.strip() for line in f if line.strip()]
 
           swiftlint_issues = []
-          swift_json_path = './artifacts/swiftlint/swiftlint.json'
-          if os.path.exists(swift_json_path):
+          if os.path.exists('./artifacts/swiftlint/swiftlint.json'):
               try:
-                  with open(swift_json_path, 'r', encoding='utf-8') as f:
+                  with open('./artifacts/swiftlint/swiftlint.json', 'r', encoding='utf-8') as f:
                       swiftlint_issues = json.load(f)
-              except Exception as e:
-                  print(f"⚠️ 解析 SwiftLint JSON 失败: {e}")
+              except Exception:
+                  pass
 
-          # 解析文档检查结果
           doc_summary = []
-          doc_summary_path = './artifacts/doc-check/doc_summary.log'
-          if os.path.exists(doc_summary_path):
-              with open(doc_summary_path, 'r', encoding='utf-8') as f:
+          if os.path.exists('./artifacts/doc-check/doc_summary.log'):
+              with open('./artifacts/doc-check/doc_summary.log', 'r', encoding='utf-8') as f:
                   doc_summary = [line.strip() for line in f if line.strip()]
 
-          # 修复大小写导致的 KeyError: 'Error' 问题
           swift_errors = [i for i in swiftlint_issues if i.get('severity', '').lower() == 'error']
           swift_warnings = [i for i in swiftlint_issues if i.get('severity', '').lower() == 'warning']
-
           static_fails = sum(1 for line in quick_summary if line.startswith('❌'))
           doc_fails = sum(1 for line in doc_summary if line.startswith('❌'))
           total_errors = static_fails + len(swift_errors) + doc_fails
@@ -363,124 +483,48 @@ jobs:
           china_time = datetime.now(china_tz).strftime('%Y-%m-%d %H:%M:%S')
 
           md = []
-          md.append("# 🚀 PR 检查汇总报告\n")
-          md.append("> 由 GitHub Actions 自动生成，包含静态检查、SwiftLint 与接入文档门禁结果。\n")
+          md.append("# 🚀 CI 全流程检查汇总报告\n")
+          md.append("> 门禁检查 + iOS 构建一体化流水线，含静态检查、SwiftLint、文档门禁与构建结果。\n")
           md.append(f"**更新时间 (中国标准时间)**: `{china_time}`\n")
-
           md.append("## 📊 总体统计\n")
           md.append(f"- 🔴 **严重错误**: {total_errors}")
           md.append(f"  - 静态检查: {static_fails}")
           md.append(f"  - SwiftLint: {len(swift_errors)}")
           md.append(f"  - 文档门禁: {doc_fails}")
-          md.append(f"- 🟡 **警告**: {total_warnings}")
-          md.append(f"  - SwiftLint: {len(swift_warnings)}")
-          md.append(f"  - 文档门禁: {doc_warnings}\n")
+          md.append(f"- 🟡 **警告**: {total_warnings}\n")
 
           md.append("## 🧱 静态检查详情\n")
-          if not quick_summary:
-              md.append("⚠️ 未获取到静态检查汇总信息\n")
-          else:
-              md.append("| 检查项 | 状态 | 详情 |")
-              md.append("| :--- | :---: | :--- |")
-              for line in quick_summary:
-                  if line.startswith('❌'):
-                      parts = line.split('|', 1)
-                      name = parts[0].replace('❌', '').strip()
-                      detail = parts[1].strip() if len(parts) > 1 else ''
-                      md.append(f"| {name} | ❌ 失败 | {detail} |")
-                  elif line.startswith('⚠️'):
-                      parts = line.split('|', 1)
-                      name = parts[0].replace('⚠️', '').strip()
-                      detail = parts[1].strip() if len(parts) > 1 else ''
-                      md.append(f"| {name} | ⚠️ 警告 | {detail} |")
-                  else:
-                      parts = line.split('|', 1)
-                      name = parts[0].replace('✅', '').strip()
-                      detail = parts[1].strip() if len(parts) > 1 else ''
-                      md.append(f"| {name} | ✅ 通过 | {detail} |")
-              md.append("")
-
-          if quick_errors:
-              md.append("### 📋 静态检查错误详情\n")
-              md.append("```text")
-              for e in quick_errors:
-                  md.append(e)
-              md.append("```\n")
-
-          md.append("## 📄 接入文档门禁检查详情\n")
-          if not doc_summary:
-              md.append("⚠️ 未获取到文档检查汇总信息\n")
-          else:
-              md.append("| 检查项 | 状态 | 详情 |")
-              md.append("| :--- | :---: | :--- |")
-              for line in doc_summary:
-                  if line.startswith('❌'):
-                      parts = line.split('|', 1)
-                      name = parts[0].replace('❌', '').strip()
-                      detail = parts[1].strip() if len(parts) > 1 else ''
-                      md.append(f"| {name} | ❌ 失败 | {detail} |")
-                  elif line.startswith('⚠️'):
-                      parts = line.split('|', 1)
-                      name = parts[0].replace('⚠️', '').strip()
-                      detail = parts[1].strip() if len(parts) > 1 else ''
-                      md.append(f"| {name} | ⚠️ 警告 | {detail} |")
-                  elif line.startswith('📊'):
-                      parts = line.split('|', 1)
-                      name = parts[0].replace('📊', '').strip()
-                      detail = parts[1].strip() if len(parts) > 1 else ''
-                      md.append(f"| {name} | 📊 汇总 | {detail} |")
-                  else:
-                      parts = line.split('|', 1)
-                      name = parts[0].replace('✅', '').strip()
-                      detail = parts[1].strip() if len(parts) > 1 else ''
-                      md.append(f"| {name} | ✅ 通过 | {detail} |")
-              md.append("")
-
-          md.append("## 🔍 SwiftLint 检查汇总\n")
           md.append("| 检查项 | 状态 | 详情 |")
           md.append("| :--- | :---: | :--- |")
+          for line in quick_summary:
+              icon = '❌ 失败' if line.startswith('❌') else ('⚠️ 警告' if line.startswith('⚠️') else '✅ 通过')
+              parts = line.split('|', 1)
+              name = parts[0].replace('❌', '').replace('⚠️', '').replace('✅', '').strip()
+              detail = parts[1].strip() if len(parts) > 1 else ''
+              md.append(f"| {name} | {icon} | {detail} |")
+          md.append("")
+
+          md.append("## 📄 接入文档门禁检查详情\n")
+          md.append("| 检查项 | 状态 | 详情 |")
+          md.append("| :--- | :---: | :--- |")
+          for line in doc_summary:
+              if line.startswith('❌'): icon = '❌ 失败'
+              elif line.startswith('⚠️'): icon = '⚠️ 警告'
+              elif line.startswith('📊'): icon = '📊 汇总'
+              else: icon = '✅ 通过'
+              parts = line.split('|', 1)
+              name = parts[0].replace('❌', '').replace('⚠️', '').replace('📊', '').replace('✅', '').strip()
+              detail = parts[1].strip() if len(parts) > 1 else ''
+              md.append(f"| {name} | {icon} | {detail} |")
+          md.append("")
+
+          md.append("## 🔍 SwiftLint 检查汇总\n")
           if len(swift_errors) == 0 and len(swift_warnings) == 0:
               md.append("| SwiftLint 代码规范 | ✅ 通过 | 未发现任何问题 |\n")
           elif len(swift_errors) > 0:
               md.append(f"| SwiftLint 代码规范 | ❌ 失败 | 发现 {len(swift_errors)} 个错误, {len(swift_warnings)} 个警告 |\n")
           else:
               md.append(f"| SwiftLint 代码规范 | ⚠️ 警告 | 发现 {len(swift_warnings)} 个警告 |\n")
-
-          md.append("## 📋 SwiftLint 详细列表\n")
-          if not swiftlint_issues:
-              md.append("✅ 未触发任何规则，全部通过！\n")
-          else:
-              rule_stats = collections.defaultdict(lambda: {'error': 0, 'warning': 0})
-              for issue in swiftlint_issues:
-                  rule = issue.get('rule_id', 'Unknown')
-                  sev = issue.get('severity', 'warning').lower()
-                  if sev in ('error', 'warning'):
-                      rule_stats[rule][sev] += 1
-
-              md.append("### 📊 触发的规则统计\n")
-              md.append("| 规则 | 状态 | 触发次数 |")
-              md.append("| :--- | :---: | :---: |")
-              for rule, stats in sorted(rule_stats.items(), key=lambda x: (x[1]['error'], x[1]['warning']), reverse=True):
-                  status = '❌ 错误' if stats['error'] > 0 else '⚠️ 警告'
-                  total = stats['error'] + stats['warning']
-                  md.append(f"| `{rule}` | {status} | {total} |")
-              md.append("")
-
-              md.append("### 📋 具体问题位置\n")
-              md.append("| 文件 | 行号 | 级别 | 规则 | 描述 |")
-              md.append("| :--- | :---: | :---: | :--- | :--- |")
-              for issue in swiftlint_issues[:200]:
-                  filepath = issue.get('file', 'Unknown')
-                  rel_path = os.path.relpath(filepath, os.getcwd()) if os.path.isabs(filepath) else filepath
-                  line = issue.get('line', 0)
-                  rule = issue.get('rule_id', 'Unknown')
-                  reason = issue.get('reason', '').replace('\n', ' ').replace('|', '\\|')
-                  sev = issue.get('severity', 'warning').lower()
-                  icon = '🔴' if sev == 'error' else '🟡'
-                  md.append(f"| `{rel_path}` | L{line} | {icon} | `{rule}` | {reason} |")
-              
-              if len(swiftlint_issues) > 200:
-                  md.append(f"\n> ⚠️ 问题过多，仅展示前 200 条。\n")
 
           content = "\n".join(md)
           os.makedirs('log', exist_ok=True)
@@ -492,72 +536,26 @@ jobs:
               with open(summary_path, 'a', encoding='utf-8') as f:
                   f.write(content)
 
-          print("✅ 报告已生成：log/README.md 及 GitHub Step Summary")
-
           with open(os.environ['GITHUB_ENV'], 'a') as f:
               f.write(f"TOTAL_ERRORS={total_errors}\n")
+          print("✅ 报告已生成")
           PYTHON_SCRIPT
-          
           python3 /tmp/generate_report.py
 
       - name: 推送报告到仓库
         if: always() && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            TARGET_BRANCH="${{ github.head_ref }}"
-          else
-            TARGET_BRANCH="${{ github.ref_name }}"
-          fi
-          
-          echo "=== 触发事件: ${{ github.event_name }} ==="
-          echo "=== 目标分支: $TARGET_BRANCH ==="
-          
-          if [ ! -f log/README.md ]; then
-            echo "❌ 报告文件未生成，无法推送"
-            exit 1
-          fi
-
+          TARGET_BRANCH="${{ github.head_ref || github.ref_name }}"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-
-          echo "=== 添加文件并强制提交 ==="
           git add log/README.md
-          
-          # 因为包含了时间戳，必然有改动。这里使用 --allow-empty 确保即使没变也不报错
-          git commit -m "docs: 自动更新代码检查报告 [skip ci]" --allow-empty
+          git commit -m "docs: 自动更新 CI 检查报告 [skip ci]" --allow-empty
+          git push origin HEAD:$TARGET_BRANCH || echo "⚠️ 报告推送失败（可能是分支保护）"
 
-          echo "=== 推送到远程分支 $TARGET_BRANCH ==="
-          if ! git push origin HEAD:$TARGET_BRANCH; then
-            echo "⚠️ 普通推送失败，尝试拉取最新代码后重试..."
-            git fetch origin $TARGET_BRANCH
-            cp log/README.md /tmp/README.md
-            git reset --hard origin/$TARGET_BRANCH
-            mkdir -p log
-            cp /tmp/README.md log/README.md
-            git add log/README.md
-            git commit -m "docs: 自动更新代码检查报告 [skip ci]" --allow-empty
-            git push origin HEAD:$TARGET_BRANCH || {
-              echo "❌ 推送失败！请检查："
-              echo "1. 仓库 Settings -> Actions -> General -> Workflow permissions 是否设为 Read and write"
-              echo "2. 分支是否有保护规则（Settings -> Branches）"
-              exit 1
-            }
-          fi
-          echo "✅ 报告已成功推送到 $TARGET_BRANCH 分支"
-
-      - name: 上传最终报告为 Artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: final-report
-          path: log/README.md
-          retention-days: 14
-
-      - name: 最终判定流水线状态
+      - name: 最终判定
         run: |
           if [ "${{ env.TOTAL_ERRORS }}" != "0" ] && [ "${{ env.TOTAL_ERRORS }}" != "" ]; then
-            echo "❌ 检查未通过，共发现 ${{ env.TOTAL_ERRORS }} 个严重错误。"
+            echo "❌ 检查未通过，共发现 ${{ env.TOTAL_ERRORS }} 个严重错误"
             exit 1
           fi
-          echo "✅ 所有检查通过，流水线成功。"
-          exit 0
+          echo "✅ 所有检查通过"
