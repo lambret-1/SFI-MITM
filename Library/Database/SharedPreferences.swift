@@ -35,6 +35,7 @@ public enum SharedPreferences {
         public static let excludeCellularServices = Preference<Bool>("exclude_cellular_services", defaultValue: true)
         public static let enforceRoutes = Preference<Bool>("enforce_routes", defaultValue: false)
         public static let excludeDeviceCommunication = Preference<Bool>("exclude_device_communication", defaultValue: true)
+        public static let ignoreMemoryLimit = Preference<Bool>("ignore_memory_limit", defaultValue: false)
 
     #endif
 

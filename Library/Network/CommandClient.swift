@@ -76,6 +76,7 @@ public class CommandClient: ObservableObject {
     private var activeConnectionToken: UInt64 = 0
     private var isConnecting = false
     @Published public var isConnected: Bool
+    @Published public var lastError: String?
     // Coalesce traffic updates so SwiftUI re-renders once per status tick.
     @Published private var trafficSnapshot = TrafficSnapshot()
     public var status: LibboxStatusMessage? {
