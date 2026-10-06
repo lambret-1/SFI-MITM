@@ -743,6 +743,7 @@
 				3A017F922A4AB2E4009149FA /* GRDB in Frameworks */,
 				3AFE19402EF5677100F61E06 /* SystemConfiguration.framework in Frameworks */,
 				3A76504C2A4F08BA003945C5 /* Libbox.xcframework in Frameworks */,
+				3AAAAAAA2F80000300AAAAAA /* CrashReporter in Frameworks */,
 				3A7E90382A46778E00D53052 /* BinaryCodable in Frameworks */,
 				3AF3A3D22B2207F3001FD7C1 /* libresolv.tbd in Frameworks */,
 			);
