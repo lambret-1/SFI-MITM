@@ -1,8 +1,36 @@
-import CrashReporter
+// PLCrashReporter 框架占位实现（本项目暂未集成 PLCrashReporter，使用空实现）
+// 如需完整崩溃报告功能，请通过 Swift Package Manager 集成 microsoft/plcrashreporter
 import Foundation
 import Libbox
 import os
 import SwiftUI
+
+// MARK: - PLCrashReporter 占位 API
+
+/// 崩溃报告数据模型（占位实现）
+public final class PLCrashReport: NSObject {
+    public let data: Data
+
+    public init(data: Data) throws {
+        self.data = data
+        super.init()
+    }
+}
+
+/// 崩溃报告文本格式化器（占位实现）
+public final class PLCrashReportTextFormatter: NSObject {
+    public static func stringValue(for crashReport: PLCrashReport, with format: PLCrashReportTextFormat) -> String? {
+        return "崩溃报告功能暂未启用（PLCrashReporter 框架未集成）\n原始数据大小: \(crashReport.data.count) 字节"
+    }
+}
+
+/// 崩溃报告文本格式（占位实现）
+public enum PLCrashReportTextFormat: UInt {
+    case iOS = 0
+}
+
+/// iOS 格式常量（占位实现）
+public let PLCrashReportTextFormatiOS = PLCrashReportTextFormat.iOS
 
 private let logger = Logger(category: "CrashReportManager")
 
