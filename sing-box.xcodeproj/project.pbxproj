@@ -1205,6 +1205,7 @@
 			packageProductDependencies = (
 				3A7E90372A46778E00D53052 /* BinaryCodable */,
 				3A017F912A4AB2E4009149FA /* GRDB */,
+				3AAAAAAA2F80000200AAAAAA /* CrashReporter */,
 			);
 			productName = Library;
 			productReference = 3AEC211D2A459B4700A63465 /* Library.framework */;
@@ -1372,6 +1373,7 @@
 				3A2E87F92ED5ABCF00644195 /* XCLocalSwiftPackageReference "Frameworks/TreeSitterJSON5" */,
 				3ACE5E012EE1A91100644196 /* XCRemoteSwiftPackageReference "CodeEditSourceEditor" */,
 				3A4CA8CA2F75381F009C36CA /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+			3AAAAAAA2F80000100AAAAAA /* XCRemoteSwiftPackageReference "plcrashreporter" */,
 			);
 			productRefGroup = 3AEC20C72A45991900A63465 /* Products */;
 			projectDirPath = "";
