@@ -52,7 +52,7 @@ public class LogDataModel: ObservableObject {
 
         Publishers.CombineLatest(
             Publishers.CombineLatest4(
-                commandClient.$logList,
+                commandClient.$logBuffer,
                 commandClient.$defaultLogLevel,
                 viewModel.$selectedLogLevel,
                 debouncedSearchText

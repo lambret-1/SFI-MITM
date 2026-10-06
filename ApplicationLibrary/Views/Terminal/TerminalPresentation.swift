@@ -5,40 +5,50 @@
         import UIKit
     #endif
 
-    extension View {
-        @ViewBuilder
-        func terminalPresentation(item session: Binding<TailscaleSSHPresentedSession?>) -> some View {
-            #if os(iOS)
-                if UIDevice.current.userInterfaceIdiom == .pad {
-                    fullScreenCover(item: session) { presented in
-                        NavigationStackCompat {
-                            TerminalSessionContainerView(presented)
+    #if canImport(GhosttyTerminal)
+        extension View {
+            @ViewBuilder
+            func terminalPresentation(item session: Binding<TailscaleSSHPresentedSession?>) -> some View {
+                #if os(iOS)
+                    if UIDevice.current.userInterfaceIdiom == .pad {
+                        fullScreenCover(item: session) { presented in
+                            NavigationStackCompat {
+                                TerminalSessionContainerView(presented)
+                            }
+                        }
+                    } else {
+                        sheet(item: session) { presented in
+                            NavigationStackCompat {
+                                TerminalSessionContainerView(presented)
+                            }
                         }
                     }
-                } else {
-                    sheet(item: session) { presented in
-                        NavigationStackCompat {
-                            TerminalSessionContainerView(presented)
-                        }
-                    }
-                }
-            #else
-                modifier(TerminalWindowPresentationModifier(session: session))
-            #endif
+                #else
+                    modifier(TerminalWindowPresentationModifier(session: session))
+                #endif
+            }
         }
-    }
 
-    #if os(macOS)
-        private struct TerminalWindowPresentationModifier: ViewModifier {
-            @Binding var session: TailscaleSSHPresentedSession?
-            @Environment(\.openWindow) private var openWindow
+        #if os(macOS)
+            private struct TerminalWindowPresentationModifier: ViewModifier {
+                @Binding var session: TailscaleSSHPresentedSession?
+                @Environment(\.openWindow) private var openWindow
 
-            func body(content: Content) -> some View {
-                content.onChangeCompat(of: session) { newValue in
-                    guard let newValue else { return }
-                    openWindow(value: newValue)
-                    session = nil
+                func body(content: Content) -> some View {
+                    content.onChangeCompat(of: session) { newValue in
+                        guard let newValue else { return }
+                        openWindow(value: newValue)
+                        session = nil
+                    }
                 }
+            }
+        #endif
+    #else
+        // GhosttyTerminal 框架未集成时的占位实现
+        extension View {
+            @ViewBuilder
+            func terminalPresentation(item session: Binding<TailscaleSSHPresentedSession?>) -> some View {
+                self
             }
         }
     #endif

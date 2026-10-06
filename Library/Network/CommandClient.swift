@@ -116,6 +116,10 @@ public class CommandClient: ObservableObject {
     @Published public var groups: [OutboundGroup]?
     @Published public var outbounds: [LibboxOutboundGroupItem]?
     @Published public var logBuffer = LogBuffer()
+    /// 日志列表（计算属性，兼容旧代码）
+    public var logList: [LogEntry] {
+        logBuffer.entries
+    }
     /// The server always sends the saved log backlog as the first message after
     /// subscribing (even when it is empty), so until it arrives an empty buffer
     /// means "still loading", not "no logs".
