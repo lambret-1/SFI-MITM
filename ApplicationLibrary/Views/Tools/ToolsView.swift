@@ -32,9 +32,15 @@ public struct ToolsView: View {
 
     public init() {}
 
+    private var hasEndpoints: Bool {
+        !tailscaleViewModel.endpoints.isEmpty ||
+        !openConnectViewModel.endpoints.isEmpty ||
+        !openVPNViewModel.endpoints.isEmpty
+    }
+
     public var body: some View {
         FormView {
-            if !tailscaleViewModel.endpoints.isEmpty || !openConnectViewModel.endpoints.isEmpty || !openVPNViewModel.endpoints.isEmpty {
+            if hasEndpoints {
                 Section("Endpoints") {
                     ForEach(tailscaleViewModel.endpoints) { endpoint in
                         FormNavigationLink {
